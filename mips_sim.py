@@ -1,5 +1,22 @@
 #!/usr/bin/env python3
 
+#
+#░░░░░░░░░
+#░░░░▄▀▀▀▀▀█▀▄▄▄▄░░░░
+#░░▄▀▒▓▒▓▓▒▓▒▒▓▒▓▀▄░░
+#▄▀▒▒▓▒▓▒▒▓▒▓▒▓▓▒▒▓█░
+#█▓▒▓▒▓▒▓▓▓░░░░░░▓▓█░
+#█▓▓▓▓▓▒▓▒░░░░░░░░▓█░
+#▓▓▓▓▓▒░░░░░░░░░░░░█░
+#▓▓▓▓░░░░▄▄▄▄░░░▄█▄▀░
+#░▀▄▓░░▒▀▓▓▒▒░░█▓▒▒░░
+#▀▄░░░░░░░░░░░░▀▄▒▒█░
+#░▀░▀░░░░░▒▒▀▄▄▒▀▒▒█░
+#░░▀░░░░░░▒▄▄▒▄▄▄▒▒█░
+#░░░▀▄▄▒▒░░░░▀▀▒▒▄▀░░
+#░░░░░▀█▄▒▒░░░░▒▄▀░░░
+#░░░░░░░░▀▀█▄▄▄▄▀
+
 from enum import Enum, unique
 import numpy as np
 
@@ -10,6 +27,7 @@ class IllegalInstructionError(Exception):
 
 class IanMIPS:
 
+    # This has been checked once, could still be wrong. Kappa
     op_dict = {
         "add":      0b000000,
         "addi":     0b001000,
@@ -58,45 +76,54 @@ class IanMIPS:
     }
 
     funct_dict = {
-        "noop": 0b000000,
-        "srl":  0b000010,
-        "sra":  0b000011,
-        "sllv": 0b000100,
-        "srlv": 0b000110,
-        "jr":   0b001000,
-        "syscall": 0b001100,
-        "mfhi": 0b010000,
-        "mflo": 0b010010,
-        "mult": 0b011000,
-        "div":  0b011010,
-        "divu": 0b011011,
-        "add":  0b100000,
-        "addu": 0b100001,
-        "sub":  0b100010,
-        "subu": 0b100011,
-        "and":  0b100100,
-        "or":   0b100101,
-        "xor":  0b100110,
-        "slt":  0b101010,
-        "sltu": 0b101011,
-
-
+        "add":      0b100000,
+        "addu":     0b100001,
+        "and":      0b100100,
+        "div":      0b011010,
+        "divu":     0b011011,
+        "jr":       0b001000,
+        "mfhi":     0b010000,
+        "mflo":     0b010010,
+        "mult":     0b011000,
+        "or":       0b100101,
+        "sll":      0b000000,
+        "sllv":     0b000100,
+        "slt":      0b101010,
+        "sltu":     0b101011,
+        "sra":      0b000011,
+        "srl":      0b000010,
+        "srlv":     0b000110,
+        "sub":      0b100010,
+        "subu":     0b100011,
+        "syscall":  0b001100,
+        "xor":      0b100110,
     }
 
     inv_op_dict = {v: k for k, v in op_dict.items()}
     inv_funct_dict = {v: k for k, v in funct_dict.items()}
 
-    r_instr = {0, "add", "addu", "and"}
-
-    b_instr = {
-        "bgez": 0b00001,    # $at
-        "bgezal": 0b10001,  # $s1
-        "blez": 0b00000,    # $zero
-        "bltz": 0b00000,    # $zero
-        "bltzal": 0b10000,
+    r_instr = {
+        "add", "addu", "and", "div", "divu", "mult", "multu", "or", "sll", "sllv", "slt", "sltu", "sra", "srl",
+        "srlv", "sub", "subu", "xor"
     }
 
-    i_instr = {"addi", "addiu", "andi", "beq", "bgez", "bgezal", "bgtz", "blez", "bne", "xori"}
+    sp_instr = {
+        "noop",
+        "syscall",
+    }
+
+    b_instr = {
+        "bgez":     0b00001,    # $at
+        "bgezal":   0b10001,    # $s1
+        "blez":     0b00000,    # $zero
+        "bltz":     0b00000,    # $zero
+        "bltzal":   0b10000,
+    }
+
+    i_instr = {
+        "addi", "addiu", "andi", "beq", "bgez", "bgezal", "bgtz", "blez", "bltz", "bltzal", "bne",
+        "j", "jal", "jr", "lb", "lui", "lw", "ori", "sb", "slti", "sltiu", "sw", "xori",
+    }
 
     reg_dict = {
         "zero": 0,
@@ -146,8 +173,11 @@ class Instr:
 
         out = np.uint32(0)
 
-        tmp_arr[0] = np.left_shift(IanMIPS.op_dict[op], 26)
-        #print(np.binary_repr(tmp_arr[0], width=32))
+        if type(op) is str:
+            tmp_arr[0] = np.left_shift(IanMIPS.op_dict[op], 26)
+        else:
+            tmp_arr[0] = np.left_shift(op, 26)
+
         tmp_arr[1] = np.left_shift(IanMIPS.reg_dict[rs], 21)
         #print(np.binary_repr(tmp_arr[1], width=32))
         tmp_arr[2] = np.left_shift(IanMIPS.reg_dict[rt], 16)
@@ -246,7 +276,18 @@ class Instr:
 
         #print("instr = ", np.binary_repr(instr, width=32))
 
+        if type(instr) is not np.uint32:
+            raise ValueError()
+
+        if instr == 0:
+            self.op_str = "noop"
+            self.op = 0
+            return
+
         self.op = self.extr_op(instr)
+        if self.op == 0:
+            pass
+
         self.rs = self.extr_rs(instr)
         self.rt = self.extr_rt(instr)
 
@@ -265,7 +306,7 @@ class Instr:
             raise IllegalInstructionError()
 
     def __str__(self):
-        if self.op in IanMIPS.r_instr:
+        if self.op_str in IanMIPS.r_instr:
             if self.op == 0:
 
                 try:
@@ -291,21 +332,27 @@ class Instr:
     pass
 
 
-class Processor:
+class MIPSProcessor:
 
     def __init__(self):
         self.reg = np.zeros(32, dtype=np.uint32)
+
+        self.hi = np.uint32(0)
+        self.lo = np.uint32(0)
 
     def do_instr(self, instr):
 
         if type(instr) is not Instr:
             instr = Instr(instr)
 
-
+        if instr.op_str == "noop":
+            return
 
         pass
 
     pass
+
+
 
 kappa = Instr.encode_r_instr("add", "t0", "s2", "t0", funct=32)
 
