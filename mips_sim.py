@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
 
-#░░░░░░░░░░░░░░░░░░░░
-#░░░░▄▀▀▀▀▀█▀▄▄▄▄░░░░
-#░░▄▀▒▓▒▓▓▒▓▒▒▓▒▓▀▄░░
-#▄▀▒▒▓▒▓▒▒▓▒▓▒▓▓▒▒▓█░
-#█▓▒▓▒▓▒▓▓▓░░░░░░▓▓█░
-#█▓▓▓▓▓▒▓▒░░░░░░░░▓█░
-#▓▓▓▓▓▒░░░░░░░░░░░░█░
-#▓▓▓▓░░░░▄▄▄▄░░░▄█▄▀░
-#░▀▄▓░░▒▀▓▓▒▒░░█▓▒▒░░
-#▀▄░░░░░░░░░░░░▀▄▒▒█░
-#░▀░▀░░░░░▒▒▀▄▄▒▀▒▒█░
-#░░▀░░░░░░▒▄▄▒▄▄▄▒▒█░
-#░░░▀▄▄▒▒░░░░▀▀▒▒▄▀░░
-#░░░░░▀█▄▒▒░░░░▒▄▀░░░
-#░░░░░░░░▀▀█▄▄▄▄▀░░░░
-#░░░░░░░░░░░░░░░░░░░░
+# ░░░░░░░░░░░░░░░░░░░░
+# ░░░░▄▀▀▀▀▀█▀▄▄▄▄░░░░
+# ░░▄▀▒▓▒▓▓▒▓▒▒▓▒▓▀▄░░
+# ▄▀▒▒▓▒▓▒▒▓▒▓▒▓▓▒▒▓█░
+# █▓▒▓▒▓▒▓▓▓░░░░░░▓▓█░
+# █▓▓▓▓▓▒▓▒░░░░░░░░▓█░
+# ▓▓▓▓▓▒░░░░░░░░░░░░█░
+# ▓▓▓▓░░░░▄▄▄▄░░░▄█▄▀░
+# ░▀▄▓░░▒▀▓▓▒▒░░█▓▒▒░░
+# ▀▄░░░░░░░░░░░░▀▄▒▒█░
+# ░▀░▀░░░░░▒▒▀▄▄▒▀▒▒█░
+# ░░▀░░░░░░▒▄▄▒▄▄▄▒▒█░
+# ░░░▀▄▄▒▒░░░░▀▀▒▒▄▀░░
+# ░░░░░▀█▄▒▒░░░░▒▄▀░░░
+# ░░░░░░░░▀▀█▄▄▄▄▀░░░░
+# ░░░░░░░░░░░░░░░░░░░░
 
 from enum import Enum, unique
 import numpy as np
@@ -23,6 +23,10 @@ import re
 
 
 class IllegalInstructionError(Exception):
+    pass
+
+
+class IntegerOverflow(Exception):
     pass
 
 
@@ -157,41 +161,53 @@ class CMDParse:
             out.rd = op_str[1]
             out.rs = op_str[2]
             out.rt = op_str[3]
+            out.args = [out.rd, out.rs, out.rt]
         elif op_str[0] in CMDParse.cat_2:
             out.rd = op_str[1]
             out.rt = op_str[2]
             out.rs = op_str[3]
+            out.args = [out.rd, out.rt, out.rs]
         elif op_str[0] in CMDParse.cat_3:
             out.rd = op_str[1]
             out.rt = op_str[2]
             out.h = op_str[3]
+            out.args = [out.rd, out.rt, out.h]
         elif op_str[0] in CMDParse.cat_4:
             out.rt = op_str[1]
             out.rs = op_str[2]
             out.imm = op_str[3]
+            out.args = [out.rt, out.rs, out.imm]
         elif op_str[0] in CMDParse.cat_5:
             out.rt = op_str[1]
             out.imm = op_str[2]
             out.rs = op_str[3]
+            out.args = [out.rt, out.imm, out.rs]
         elif op_str[0] in CMDParse.cat_6:
             out.rs = op_str[1]
+            out.args = [out.rs]
         elif op_str[0] in CMDParse.cat_7:
             out.target = op_str[1]
+            out.args = [out.target]
         elif op_str[0] in CMDParse.cat_8:
             out.rs = op_str[1]
             out.rt = op_str[2]
+            out.args = [out.rs, out.rt]
         elif op_str[0] in CMDParse.cat_9:
             out.rd = op_str[1]
+            out.args = [out.rd]
         elif op_str[0] in CMDParse.cat_10:
             out.rt = op_str[1]
             out.imm = op_str[2]
+            out.args = [out.rt, out.imm]
         elif op_str[0] in CMDParse.cat_11:
             out.rs = op_str[1]
             out.imm = op_str[2]
+            out.args = [out.rs, out.imm]
         elif op_str[0] in CMDParse.cat_12:
             out.rs = op_str[1]
             out.rt = op_str[2]
             out.imm = op_str[3]
+            out.args = [out.rs, out.rt, out.imm]
         else:
             pass
 
@@ -455,6 +471,15 @@ class Instr:
         return out
 
     def __init__(self):
+        self.op = ""
+        self.funct = ""
+        self.rs = ""
+        self.rt = ""
+        self.rd = ""
+        self.shamt = ""
+        self.target = ""
+        self.imm = ""
+        self.offset = ""
         pass
 
     def init_from_word(self, instr):
@@ -578,12 +603,103 @@ class MIPSProcessor:
         self.hi = np.uint32(0)
         self.lo = np.uint32(0)
 
-    def do_instr(self, instr):
+        self.pc = np.uint32(0)
+        self.epc = np.uint32(0)
+        self.cause = np.uint32(0)
+        self.badvaddr = np.uint32(0)
+        self.status = np.uint32(0)
 
-        if type(instr) is not Instr:
-            instr = Instr(instr)
+        self.ops = {
+            "add": self._add,
+            "addi": self._addi,
+            "addiu": self._addiu,
+            "addu": self._addu,
+            "and": self._and,
+            "andi": self._andi,
 
-        if instr.op_str == "noop":
-            return
+        }
 
-        pass
+        # TODO Do something more smarter here.
+        np.seterr(over="ignore")
+
+    def argconv(self, args):
+
+        out = []
+        for a in args:
+            try:
+                out.append(IanMIPS.reg_dict[a])
+                continue
+            except KeyError:
+                pass
+
+            try:
+                out.append(int(a))
+            except ValueError:
+                out.append(int(a, 16))
+
+        return out
+
+    def execute_prog(self, program):
+
+        if type(program) is not list:
+            raise ValueError()
+
+        for i in program:
+            self.ops[i.op](*self.argconv(i.args))
+
+    def do_instr(self, i):
+
+        if type(i) is not Instr:
+            raise ValueError()
+
+        self.ops[i.op](*self.argconv(i.args))
+
+    def _add(self, rd, rs, rt):
+
+        # Add two 32 bit GPRs, store in third. Traps on overflow
+
+        temp = self.reg[rs] + self.reg[rt]
+
+        b_temp = "{:032b}".format(temp)
+
+        if b_temp[0] != b_temp[1]:
+            raise IntegerOverflow()
+        else:
+            self.reg[rd] = temp
+
+    def _addi(self, rt, rs, imm):
+
+        # Add 16 bit signed imm to rs, then store in rt. Traps on overflow.
+        temp = self.reg[rs] + np.int16(imm)
+
+        b_temp = "{:032b}".format(temp)
+
+        if b_temp[0] != b_temp[1]:
+            raise IntegerOverflow()
+        else:
+            self.reg[rt] = temp
+
+    def _addiu(self, rt, rs, imm):
+        # Add 16 bit signed imm to rs, then store in rt.
+        self.reg[rt] = self.reg[rs] + np.int16(imm)
+
+    def _addu(self, rd, rs, rt):
+        # Add two 32 bit GPRs, store in third.
+
+        self.reg[rd] = self.reg[rs] + self.reg[rt]
+
+    def _and(self, rd, rs, rt):
+        # Bitwise and of two GPR, stores in a third.
+
+        self.reg[rd] = np.bitwise_and(self.reg[rs], self.reg[rt])
+
+    def _andi(self, rt, rs, imm):
+        # Bitwise and of a GPR and an immediate value, stores in second GPR.
+
+        self.reg[rt] = np.bitwise_and(self.reg[rs], np.uint32(imm))
+
+    def _beq(self, rs, rt, offset):
+
+        if self.reg[rs] == self.reg[rt]:
+            self.pc += offset
+

@@ -5,12 +5,16 @@ import random
 
 import numpy as np
 
-from mips_sim import IanMIPS, Instr, IllegalInstructionError, InstrType, CMDParse
+from mips_sim import IanMIPS, Instr, IllegalInstructionError, InstrType, CMDParse, MIPSProcessor, IntegerOverflow
 
 well_formed = [
     "add $s0, $t0, $t1",
     "addi $s0, $t0, 0xfffb",    # -5 = 0xfffb
+    "addi $s1, $t1, -5",
+    "addi $s2, $t2, 26",
     "addiu $s0, $t0, 42",
+    "addiu $s1, $t1, -55",
+    "addiu $s2, $t2, 0x0bba",
     "addu $s0, $t0, $t1",
     "and $s0, $t0, $t1",
     "andi $s0, $t0, 63",
@@ -128,7 +132,153 @@ class TestOpcodes(unittest.TestCase):
 
             pass
 
+    def test_add(self):
+        p = MIPSProcessor()
 
+        p.reg[10] = 11
+        p.reg[11] = 22
+        p.reg[12] = 3
+
+        p._add(10, 11, 12)
+
+        self.assertEqual(p.reg[10], 25)
+
+        try:
+            p.reg[11] = 2 ** 31 - 1 # INT_MAX + 2 = overflow
+            p.reg[12] = 2
+            p._add(10, 11, 12)
+            self.assertTrue(False)
+        except IntegerOverflow:
+            pass
+
+        try:
+            p.reg[11] = -2 ** 31 # INT_MIN - 2 = overflow
+            p.reg[12] = -2
+            p._add(10, 11, 12)
+            self.assertTrue(False)
+        except IntegerOverflow:
+            pass
+
+        inst = CMDParse.parse_cmd("add $s3, $s4, $s5")
+
+        p.reg[19] = 2
+        p.reg[20] = 11
+        p.reg[21] = 22
+
+        p.do_instr(inst)
+
+        self.assertEqual(p.reg[19], 33)
+
+    def test_addi(self):
+
+        p = MIPSProcessor()
+
+        p.reg[10] = 5
+
+        p._addi(11, 10, 0x5)
+
+        self.assertEqual(p.reg[11], 10)
+
+        try:
+            p.reg[10] = 2**31 - 1
+            p._addi(11, 10, 2)
+            self.assertTrue(False)
+        except IntegerOverflow:
+            pass
+
+        try:
+            p.reg[10] = -2 ** 31
+            p._addi(11, 10, -2)
+            self.assertTrue(False)
+        except IntegerOverflow:
+            pass
+
+        inst = CMDParse.parse_cmd("addi $s3, $s4, 0xa")
+
+        p.reg[19] = 2
+        p.reg[20] = 11
+
+        p.do_instr(inst)
+
+        self.assertEqual(p.reg[19], 21)
+
+    def test_addiu(self):
+
+        p = MIPSProcessor()
+
+        p.reg[10] = 5
+
+        p._addiu(11, 10, 2)
+
+        self.assertEqual(p.reg[11], 7)
+
+        p.reg[10] = 2**32 - 1
+        p._addiu(11, 10, 2)
+        self.assertEqual(p.reg[11], 1)
+
+        p.reg[10] = 1
+        p._addiu(11, 10, -2)
+        self.assertEqual(p.reg[11], 2 ** 32 - 1)
+
+    def test_addu(self):
+        """ Test addu $rd, $rs, $rt """
+        p = MIPSProcessor()
+
+        p.reg[10] = 11
+        p.reg[11] = 22
+        p.reg[12] = 3
+
+        p._addu(10, 11, 12)
+
+        self.assertEqual(p.reg[10], 25)
+
+        p.reg[11] = 2 ** 32 - 1
+        p.reg[12] = 2
+        p._addu(10, 11, 12)
+        self.assertTrue(p.reg[10], 1)
+
+        p.reg[11] = 0
+        p.reg[12] = -1
+        p._addu(10, 11, 12)
+        self.assertTrue(p.reg[10], 2 ** 32 - 1)
+
+    def test_and(self):
+        """ Test and $rd, $rs, $rt """
+
+        p = MIPSProcessor()
+
+        for i in range(100):
+            a = np.uint32(random.getrandbits(32))
+            b = np.uint32(random.getrandbits(32))
+            p.reg[11] = a
+            p.reg[12] = b
+
+            c = np.bitwise_and(a, b)
+
+            p._and(10, 11, 12)
+
+            self.assertEqual(p.reg[10], c)
+
+    def test_andi(self):
+        """ Test addi $rt, $rs, imm """
+
+        p = MIPSProcessor()
+
+        for i in range(100):
+            imm = np.uint32(random.getrandbits(32))
+
+            rt = random.randint(8, 23)
+            rs = random.randint(8, 23)
+
+            rsval = np.uint32(random.getrandbits(32))
+
+            p.reg[rs] = rsval
+
+            res = np.bitwise_and(rsval, imm)
+
+            p._andi(rt, rs, imm)
+
+            self.assertEqual(p.reg[rt], res)
 
 if __name__ == "__main__":
     random.seed()
