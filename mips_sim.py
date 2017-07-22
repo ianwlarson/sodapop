@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
-#
-#░░░░░░░░░
+#░░░░░░░░░░░░░░░░░░░░
 #░░░░▄▀▀▀▀▀█▀▄▄▄▄░░░░
 #░░▄▀▒▓▒▓▓▒▓▒▒▓▒▓▀▄░░
 #▄▀▒▒▓▒▓▒▒▓▒▓▒▓▓▒▒▓█░
@@ -15,17 +14,193 @@
 #░░▀░░░░░░▒▄▄▒▄▄▄▒▒█░
 #░░░▀▄▄▒▒░░░░▀▀▒▒▄▀░░
 #░░░░░▀█▄▒▒░░░░▒▄▀░░░
-#░░░░░░░░▀▀█▄▄▄▄▀
+#░░░░░░░░▀▀█▄▄▄▄▀░░░░
+#░░░░░░░░░░░░░░░░░░░░
 
 from enum import Enum, unique
 import numpy as np
+import re
 
 
 class IllegalInstructionError(Exception):
     pass
 
 
+class InstrType(Enum):
+    R = 0
+    I = 1
+    J = 2
+    S = 3
+
+
+class CMDParse:
+
+    # op
+    cat_0 = {
+        "noop",
+        "syscall",
+    }
+
+    # op $d, $s, $t
+    cat_1 = {
+        "add",
+        "addu",
+        "and",
+        "or",
+        "slt",
+        "sltu",
+        "sub",
+        "subu",
+        "xor",
+    }
+
+    # op $d, $t, $s
+    cat_2 = {
+        "sllv",
+        "srlv",
+    }
+
+    # op $d, $t, h
+    cat_3 = {
+        "sll",
+        "sra",
+        "srl",
+    }
+
+    # op $t, $s, imm
+    cat_4 = {
+        "addi",
+        "addiu",
+        "andi",
+        "ori",
+        "slti",
+        "sltiu",
+        "xori",
+    }
+
+    # op $t, offset($s)
+    cat_5 = {
+        "lb",
+        "lw",
+        "sb",
+        "sw"
+    }
+
+    # op $s
+    cat_6 = {
+        "jr"
+    }
+
+    # op target
+    cat_7 = {
+        "j",
+        "jal",
+    }
+
+    # op $s, $t
+    cat_8 = {
+        "div",
+        "divu",
+        "mult",
+        "multu",
+    }
+
+    # op $d
+    cat_9 = {
+        "mfhi",
+        "mflo"
+    }
+
+    # op $t, imm
+    cat_10 = {
+        "lui"
+    }
+
+    # op $s, offset
+    cat_11 = {
+        "bgez",
+        "bgezal",
+        "bgtz",
+        "blez",
+        "bltz",
+        "bltzal",
+    }
+
+    # op $s, $t, offset
+    cat_12 = {
+        "beq",
+        "bne",
+    }
+
+    oplist = cat_0 | cat_1 | cat_2 | cat_3 | cat_4 | cat_5 | cat_6 | cat_7 | cat_8 | cat_9 | cat_10 | cat_11 | cat_12
+
+    @staticmethod
+    def parse_cmd(cmd):
+
+        if type(cmd) is not str:
+            raise ValueError()
+
+        out = Instr()
+
+        op_str = cmd.replace(',', " ")
+        op_str = op_str.replace('$', " ")
+        op_str = op_str.replace('(', " ")
+        op_str = op_str.replace(')', " ")
+        op_str = op_str.split()
+        op_str = list(filter(None, op_str))
+
+        out.op = op_str[0]
+
+        if op_str[0] in CMDParse.cat_0:
+            pass
+        elif op_str[0] in CMDParse.cat_1:
+            out.rd = op_str[1]
+            out.rs = op_str[2]
+            out.rt = op_str[3]
+        elif op_str[0] in CMDParse.cat_2:
+            out.rd = op_str[1]
+            out.rt = op_str[2]
+            out.rs = op_str[3]
+        elif op_str[0] in CMDParse.cat_3:
+            out.rd = op_str[1]
+            out.rt = op_str[2]
+            out.h = op_str[3]
+        elif op_str[0] in CMDParse.cat_4:
+            out.rt = op_str[1]
+            out.rs = op_str[2]
+            out.imm = op_str[3]
+        elif op_str[0] in CMDParse.cat_5:
+            out.rt = op_str[1]
+            out.imm = op_str[2]
+            out.rs = op_str[3]
+        elif op_str[0] in CMDParse.cat_6:
+            out.rs = op_str[1]
+        elif op_str[0] in CMDParse.cat_7:
+            out.target = op_str[1]
+        elif op_str[0] in CMDParse.cat_8:
+            out.rs = op_str[1]
+            out.rt = op_str[2]
+        elif op_str[0] in CMDParse.cat_9:
+            out.rd = op_str[1]
+        elif op_str[0] in CMDParse.cat_10:
+            out.rt = op_str[1]
+            out.imm = op_str[2]
+        elif op_str[0] in CMDParse.cat_11:
+            out.rs = op_str[1]
+            out.imm = op_str[2]
+        elif op_str[0] in CMDParse.cat_12:
+            out.rs = op_str[1]
+            out.rt = op_str[2]
+            out.imm = op_str[3]
+        else:
+            pass
+
+        return out
+
+
 class IanMIPS:
+
+
 
     # This has been checked once, could still be wrong. Kappa
     op_dict = {
@@ -75,6 +250,8 @@ class IanMIPS:
         "xori":     0b001110,
     }
 
+    OPS = list(op_dict.keys())
+
     funct_dict = {
         "add":      0b100000,
         "addu":     0b100001,
@@ -103,8 +280,17 @@ class IanMIPS:
     inv_funct_dict = {v: k for k, v in funct_dict.items()}
 
     r_instr = {
-        "add", "addu", "and", "div", "divu", "mult", "multu", "or", "sll", "sllv", "slt", "sltu", "sra", "srl",
-        "srlv", "sub", "subu", "xor"
+        "add", "addu", "and", "div", "divu", "mfhi", "mflo", "mult", "multu", "or", "sll", "sllv", "slt", "sltu",
+        "sra", "srl", "srlv", "sub", "subu", "xor"
+    }
+
+    i_instr = {
+        "addi", "addiu", "andi", "beq", "bgez", "bgezal", "bgtz", "blez", "bltz", "bltzal", "bne",
+        "lb", "lui", "lw", "ori", "sb", "slti", "sltiu", "sw", "xori",
+    }
+
+    j_instr = {
+        "j", "jal", "jr"
     }
 
     sp_instr = {
@@ -115,15 +301,11 @@ class IanMIPS:
     b_instr = {
         "bgez":     0b00001,    # $at
         "bgezal":   0b10001,    # $s1
-        "blez":     0b00000,    # $zero
         "bltz":     0b00000,    # $zero
         "bltzal":   0b10000,
     }
 
-    i_instr = {
-        "addi", "addiu", "andi", "beq", "bgez", "bgezal", "bgtz", "blez", "bltz", "bltzal", "bne",
-        "j", "jal", "jr", "lb", "lui", "lw", "ori", "sb", "slti", "sltiu", "sw", "xori",
-    }
+    inv_b_instr = {v: k for k, v in b_instr.items()}
 
     reg_dict = {
         "zero": 0,
@@ -168,7 +350,7 @@ class IanMIPS:
 class Instr:
 
     @staticmethod
-    def encode_r_instr(op, rd, rs, rt, shamt = 0, funct = 0):
+    def encode_r_instr(op, rd = "zero", rs = "zero", rt = "zero", shamt = 0, funct = 0):
         tmp_arr = np.zeros(6, dtype=np.uint32)
 
         out = np.uint32(0)
@@ -272,7 +454,10 @@ class Instr:
 
         return out
 
-    def __init__(self, instr):
+    def __init__(self):
+        pass
+
+    def init_from_word(self, instr):
 
         #print("instr = ", np.binary_repr(instr, width=32))
 
@@ -286,17 +471,26 @@ class Instr:
 
         self.op = self.extr_op(instr)
         if self.op == 0:
-            pass
+            # syscall or arithmetic operations
+            self.funct = self.extr_funct(instr)
+            self.op_str = IanMIPS.inv_funct_dict[self.funct]
+        elif self.op == 1:
+            # bgez, bgezal, bltz, bltzal
+
+            self.rt = self.extr_rt(instr)
+            self.op_str = IanMIPS.inv_b_instr[self.rt]
+
+        else:
+            self.op_str = IanMIPS.inv_op_dict[self.op]
 
         self.rs = self.extr_rs(instr)
         self.rt = self.extr_rt(instr)
 
-        if self.op in IanMIPS.r_instr:
+        if self.op_str in IanMIPS.r_instr:
             self.rd = self.extr_rd(instr)
             self.shamt = self.extr_shamt(instr)
-            self.funct = self.extr_funct(instr)
             pass
-        elif self.op in IanMIPS.i_instr:
+        elif self.op_str in IanMIPS.i_instr:
             self.imm = self.extr_imm(instr)
             pass
         else:
@@ -306,30 +500,74 @@ class Instr:
             raise IllegalInstructionError()
 
     def __str__(self):
-        if self.op_str in IanMIPS.r_instr:
-            if self.op == 0:
+        if self.op in CMDParse.cat_0:
+            return self.op
+        elif self.op in CMDParse.cat_1:
+            return "{} ${}, ${}, ${}".format(self.op, self.rd, self.rs, self.rt)
+        elif self.op in CMDParse.cat_2:
+            return "{} ${}, ${}, ${}".format(self.op, self.rd, self.rt, self.rs)
+        elif self.op in CMDParse.cat_3:
+            return "{} ${}, ${}, {}".format(self.op, self.rd, self.rt, self.h)
+        elif self.op in CMDParse.cat_4:
+            # hex_imm = np.uint16(self.imm)
 
-                try:
-                    l_op = IanMIPS.inv_funct_dict[self.funct]
-                except KeyError:
-                    raise IllegalInstructionError()
-
-            else:
-                l_op = IanMIPS.inv_op_dict[self.op]
-
-            l_rd = IanMIPS.inv_reg_dict[self.rd]
-            l_rs = IanMIPS.inv_reg_dict[self.rs]
-            l_rt = IanMIPS.inv_reg_dict[self.rt]
-            return "{} ${}, ${}, ${}".format(l_op, l_rd, l_rs, l_rt)
-        elif self.op in IanMIPS.i_instr:
-            l_op = IanMIPS.inv_op_dict[self.op]
-            l_rs = IanMIPS.inv_reg_dict[self.rs]
-            l_rt = IanMIPS.inv_reg_dict[self.rt]
-            return "{} ${}, {}(${})".format(l_op, l_rt, self.imm, l_rs)
+            return "{} ${}, ${}, {}".format(self.op, self.rt, self.rs, self.imm)
+        elif self.op in CMDParse.cat_5:
+            return "{} ${}, {}(${})".format(self.op, self.rt, self.imm, self.rs)
+        elif self.op in CMDParse.cat_6:
+            return "{} ${}".format(self.op, self.rs)
+        elif self.op in CMDParse.cat_7:
+            # TODO target and imm hex immediate values etc
+            return "{} {}".format(self.op, self.target)
+        elif self.op in CMDParse.cat_8:
+            return "{} ${}, ${}".format(self.op, self.rs, self.rt)
+        elif self.op in CMDParse.cat_9:
+            return "{} ${}".format(self.op, self.rd)
+        elif self.op in CMDParse.cat_10:
+            return "{} ${}, {}".format(self.op, self.rt, self.imm)
+        elif self.op in CMDParse.cat_11:
+            return "{} ${}, {}".format(self.op, self.rs, self.imm)
+        elif self.op in CMDParse.cat_12:
+            return "{} ${}, ${}, {}".format(self.op, self.rs, self.rt, self.imm)
         else:
+            print("How did this happen? FUCK", self.op)
             raise IllegalInstructionError()
 
-    pass
+    def __eq__(self, other):
+        if self.op != other.op:
+            return False
+
+        try:
+            if hasattr(self, "rs"):
+                if self.rs != other.rs:
+                    return False
+
+            if hasattr(self, "rt"):
+                if self.rt != other.rt:
+                    return False
+
+            if hasattr(self, "rd"):
+                if self.rd != other.rd:
+                    return False
+
+            if hasattr(self, "imm"):
+                # TODO convert to unsigned before checking.
+                if self.imm != other.imm:
+                    return False
+
+            if hasattr(self, "offset"):
+                # TODO convert before checking
+                if self.offset != other.offset:
+                    return False
+
+            if hasattr(self, "target"):
+                # TODO This should be in hex?
+                if self.target != other.target:
+                    return False
+        except AttributeError:
+            return False
+
+        return True
 
 
 class MIPSProcessor:
@@ -349,25 +587,3 @@ class MIPSProcessor:
             return
 
         pass
-
-    pass
-
-
-
-kappa = Instr.encode_r_instr("add", "t0", "s2", "t0", funct=32)
-
-inv_kappa = Instr(kappa)
-
-print("add $t0, $s2, $t0 => {} => {}".format(np.binary_repr(kappa,32), inv_kappa))
-
-kappa = Instr.encode_i_instr("lw", "t0", "s3", 32)
-
-inv_kappa = Instr(kappa)
-
-print("lw $t0, 32($s3) => {} => {}".format(np.binary_repr(kappa,32), inv_kappa))
-
-kappa = Instr.encode_r_instr("xor", "t0", "s2", "t0")
-
-inv_kappa = Instr(kappa)
-
-print("xor $t0, $s2, $t0 => {} => {}".format(np.binary_repr(kappa,32), inv_kappa))
