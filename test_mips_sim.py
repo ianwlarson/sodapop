@@ -144,8 +144,8 @@ class TestOpcodes(unittest.TestCase):
         self.assertEqual(p.reg[10], 25)
 
         try:
-            p.reg[11] = 2 ** 31 - 1 # INT_MAX + 2 = overflow
-            p.reg[12] = 2
+            p.reg[11] = 2 ** 31 - 1 # INT_MAX + 1 = overflow
+            p.reg[12] = 1
             p._add(10, 11, 12)
             self.assertTrue(False)
         except IntegerOverflow:
@@ -279,6 +279,78 @@ class TestOpcodes(unittest.TestCase):
             p._andi(rt, rs, imm)
 
             self.assertEqual(p.reg[rt], res)
+
+    def test_beq(self):
+
+        p = MIPSProcessor()
+
+        beq_cmd = CMDParse.parse_cmd("beq $t0, $s0, 3")
+
+        p.pc = 10
+
+        p.reg[8] = 10
+        p.reg[16] = 10
+
+        p.do_instr(beq_cmd)
+
+        self.assertEqual(p.pc, 13)
+
+    def test_sub(self):
+        p = MIPSProcessor()
+
+        p.reg[10] = 11
+        p.reg[11] = 22
+        p.reg[12] = 3
+
+        p._sub(10, 11, 12)
+
+        self.assertEqual(p.reg[10], 19)
+
+        try:
+            p.reg[11] = 2 ** 31 - 1  # INT_MAX - -2 = overflow
+            p.reg[12] = -1
+            p._sub(10, 11, 12)
+        except IntegerOverflow:
+            pass
+
+        try:
+            p.reg[11] = -2 ** 31  # INT_MIN - 2 = overflow
+            p.reg[12] = 1
+            p._sub(10, 11, 12)
+        except IntegerOverflow:
+            pass
+
+        inst = CMDParse.parse_cmd("sub $s3, $s4, $s5")
+
+        p.reg[19] = 2
+        p.reg[20] = 22
+        p.reg[21] = 11
+
+        p.do_instr(inst)
+
+        self.assertEqual(p.reg[19], 11)
+
+    def test_subu(self):
+        """ Test addu $rd, $rs, $rt """
+        p = MIPSProcessor()
+
+        p.reg[10] = 11
+        p.reg[11] = 22
+        p.reg[12] = 3
+
+        p._subu(10, 11, 12)
+
+        self.assertEqual(p.reg[10], 19)
+
+        p.reg[11] = 2 ** 32 - 1
+        p.reg[12] = -1
+        p._subu(10, 11, 12)
+        self.assertEqual(p.reg[10], 0)
+
+        p.reg[11] = 0
+        p.reg[12] = 1
+        p._subu(10, 11, 12)
+        self.assertEqual(p.reg[10], 2 ** 32 - 1)
 
 if __name__ == "__main__":
     random.seed()

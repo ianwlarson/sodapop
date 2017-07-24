@@ -22,6 +22,10 @@ import numpy as np
 import re
 
 
+class TODOError(Exception):
+    pass
+
+
 class IllegalInstructionError(Exception):
     pass
 
@@ -245,6 +249,7 @@ class IanMIPS:
         "mfhi":     0b000000,
         "mflo":     0b000000,
         "mult":     0b000000,
+        "multu":    0b000000,
         "noop":     0b000000,
         "or":       0b000000,
         "ori":      0b001101,
@@ -597,6 +602,13 @@ class Instr:
 
 class MIPSProcessor:
 
+    def errcall(self, errstr, errflag):
+        if errstr == "overflow":
+            self.set_over()
+
+    def set_over(self):
+        self.over = True
+
     def __init__(self):
         self.reg = np.zeros(32, dtype=np.uint32)
 
@@ -604,10 +616,17 @@ class MIPSProcessor:
         self.lo = np.uint32(0)
 
         self.pc = np.uint32(0)
+        self.instr_c = 0
         self.epc = np.uint32(0)
         self.cause = np.uint32(0)
         self.badvaddr = np.uint32(0)
         self.status = np.uint32(0)
+
+        self.ir = np.uint32(0)
+
+        self.mem = np.empty(1000000, dtype='uint8')
+
+        self.over = False
 
         self.ops = {
             "add": self._add,
@@ -616,11 +635,15 @@ class MIPSProcessor:
             "addu": self._addu,
             "and": self._and,
             "andi": self._andi,
+            "beq": self._beq,
+            "sub": self._sub,
+            "subu": self._subu,
 
         }
 
         # TODO Do something more smarter here.
-        np.seterr(over="ignore")
+        np.seterr(over="call")
+        np.seterrcall(self.errcall)
 
     def argconv(self, args):
 
@@ -639,13 +662,32 @@ class MIPSProcessor:
 
         return out
 
+    def load_program(self, start_addr, program):
+
+        self.mem[start_addr:start_addr + len(program)] = program
+
     def execute_prog(self, program):
+
+        raise TODOError()
 
         if type(program) is not list:
             raise ValueError()
 
-        for i in program:
-            self.ops[i.op](*self.argconv(i.args))
+        self.pc = 0
+        self.instr_c = 0
+
+        while True:
+            try:
+                instr = program[self.pc]
+                self.pc += 1
+                self.instr_c += 1
+                self.ops[instr.op](*self.argconv(instr.args))
+            except IndexError:
+                break
+
+    def fetch(self):
+
+        self.ir = np.uint32(self.mem[self.pc:self.pc + 4].view('uint32')[0])
 
     def do_instr(self, i):
 
@@ -655,38 +697,34 @@ class MIPSProcessor:
         self.ops[i.op](*self.argconv(i.args))
 
     def _add(self, rd, rs, rt):
+        # Add two 32 bit GPRs, store in third. Traps on overflow.
+        exp = int(self.reg[rs]) + int(self.reg[rt])
+        act = np.int32(self.reg[rs]) + np.int32(self.reg[rt])
 
-        # Add two 32 bit GPRs, store in third. Traps on overflow
-
-        temp = self.reg[rs] + self.reg[rt]
-
-        b_temp = "{:032b}".format(temp)
-
-        if b_temp[0] != b_temp[1]:
+        if self.over:
+            self.over = False
             raise IntegerOverflow()
-        else:
-            self.reg[rd] = temp
+
+        self.reg[rd] = act
 
     def _addi(self, rt, rs, imm):
-
         # Add 16 bit signed imm to rs, then store in rt. Traps on overflow.
-        temp = self.reg[rs] + np.int16(imm)
+        temp = np.int32(self.reg[rs]) + np.int16(imm)
 
-        b_temp = "{:032b}".format(temp)
-
-        if b_temp[0] != b_temp[1]:
+        if self.over:
+            self.over = False
             raise IntegerOverflow()
-        else:
-            self.reg[rt] = temp
+
+        self.reg[rt] = temp
 
     def _addiu(self, rt, rs, imm):
         # Add 16 bit signed imm to rs, then store in rt.
-        self.reg[rt] = self.reg[rs] + np.int16(imm)
+        self.reg[rt] = self.reg[rs] + np.uint32(imm)
 
     def _addu(self, rd, rs, rt):
         # Add two 32 bit GPRs, store in third.
 
-        self.reg[rd] = self.reg[rs] + self.reg[rt]
+        self.reg[rd] = np.uint32(self.reg[rs]) + np.uint32(self.reg[rt])
 
     def _and(self, rd, rs, rt):
         # Bitwise and of two GPR, stores in a third.
@@ -700,6 +738,195 @@ class MIPSProcessor:
 
     def _beq(self, rs, rt, offset):
 
+        if offset < 0:
+            offset -= 1
+
         if self.reg[rs] == self.reg[rt]:
             self.pc += offset
 
+    def _bgez(self, rs, offset):
+
+        if offset < 0:
+            offset -= 1
+
+        if self.reg[rs] >= 0:
+            self.pc += offset
+
+    def _bgezal(self, rs, offset):
+        # Branch greater than or equal to zero and link
+
+        if offset < 0:
+            offset -= 1
+
+        if self.reg[rs] >= 0:
+            self.reg[31] = self.pc + 1
+            self.pc += offset
+
+    def _bgtz(self, rs, offset):
+        # Branch greater than zero
+
+        if offset < 0:
+            offset -= 1
+
+        if self.reg[rs] > 0:
+            self.pc += offset
+
+    def _blez(self, rs, offset):
+        # Branch less than or equal to zero
+        if offset < 0:
+            offset -= 1
+
+        if self.reg[rs] <= 0:
+            self.pc += offset
+
+    def _bltz(self, rs, offset):
+        # Branch less than zero
+        if offset < 0:
+            offset -= 1
+
+        if self.reg[rs] < 0:
+            self.pc += offset
+
+    def _bltzal(self, rs, offset):
+        # Branch less than zero and link
+        if offset < 0:
+            offset -= 1
+
+        if self.reg[rs] < 0:
+            self.reg[31] = self.pc + 1
+            self.pc += offset
+
+    def _bne(self, rs, rt, offset):
+        if offset < 0:
+            offset -= 1
+
+        if self.reg[rs] != self.reg[rt]:
+            self.pc += offset
+
+    def _div(self, rs, rt):
+        a = np.int32(self.reg[rs])
+        b = np.int32(self.reg[rt])
+        self.lo = a / b
+        self.hi = a % b
+
+    def _divu(self, rs, rt):
+        a = np.uint32(self.reg[rs])
+        b = np.uint32(self.reg[rt])
+        self.lo = a / b
+        self.hi = a % b
+
+    def _j(self):
+        raise TODOError()
+
+    def _jal(self):
+        raise TODOError()
+
+    def _jr(self):
+        raise TODOError()
+
+    def _lb(self):
+        raise TODOError()
+
+    def _lui(self):
+        raise TODOError()
+
+    def _lw(self, rt, offset, rs):
+        # c = np.uint32(*a[start:start + 4].view('uint32'))
+
+        start = rt + offset*4
+
+        self.reg[rt] = np.uint32(self.mem[start:start + 4].view('uint32')[0])
+
+        self.pc += 4
+
+    def _mfhi(self):
+        raise TODOError()
+
+    def _mflo(self):
+        raise TODOError()
+
+    def mult(self):
+        raise TODOError()
+
+    def multu(self):
+        raise TODOError()
+
+    def noop(self):
+
+        self.pc += 4
+
+    def _or(self):
+        raise TODOError()
+
+    def _ori(self):
+        raise TODOError()
+
+    def _sb(self):
+        raise TODOError()
+
+    def _sll(self):
+        raise TODOError()
+
+    def _sllv(self):
+        raise TODOError()
+
+    def _slt(self):
+        raise TODOError()
+
+    def _slti(self):
+        raise TODOError()
+
+    def _sltiu(self):
+        raise TODOError()
+
+    def _sltu(self):
+        raise TODOError()
+
+    def _sra(self):
+        raise TODOError()
+
+    def _srl(self):
+        raise TODOError()
+
+    def _srlv(self):
+        raise TODOError()
+
+    def _sub(self, rd, rs, rt):
+        # Subtact two 32 bit GPRs, store in third. Traps on overflow
+        a = np.int32(self.reg[rs])
+        b = np.int32(self.reg[rt])
+        c = a - b
+
+        if self.over:
+            self.over = False
+            raise IntegerOverflow()
+
+        self.reg[rd] = c
+
+        self.pc += 4
+
+    def _subu(self, rd, rs, rt):
+        # Subtact two 32 bit GPRs, store in third. Does not trap on overflow
+        self.reg[rd] = self.reg[rs] - self.reg[rt]
+
+        self.pc += 4
+
+    def _sw(self, rt, offset, rs):
+        #a[start:start + 4] = np.uint32([c]).view('uint8')
+        start = self.reg[rs] + offset*4
+        self.mem[start:start + 4] = np.uint32([self.reg[rt]]).view('uint8')
+
+        self.pc += 4
+
+    def _syscall(self):
+        raise TODOError()
+
+    def _xor(self):
+        raise TODOError()
+
+    def _xori(self):
+        raise TODOError()
+
+
+# Static checks to ensure everything is correct.
+assert(all([op in IanMIPS.op_dict.keys() for op in CMDParse.oplist]))
