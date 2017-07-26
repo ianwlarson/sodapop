@@ -5,7 +5,7 @@ import random
 
 import numpy as np
 
-from mips_sim import IanMIPS, Instr, IllegalInstructionError, InstrType, CMDParse, MIPSProcessor, IntegerOverflow
+from mips_sim import IanMIPS, Instr, IllegalInstructionError, CMDParse, MIPSProcessor, IntegerOverflow
 
 well_formed = [
     "add $s0, $t0, $t1",
@@ -18,6 +18,7 @@ well_formed = [
     "addu $s0, $t0, $t1",
     "and $s0, $t0, $t1",
     "andi $s0, $t0, 63",
+    "andi $s0, $t0, 0xaaaa",
     "beq $s0, $t0, 2000",
     "bgez $s0, 1000",
     "bgezal $s0, 50",
@@ -65,18 +66,26 @@ class TestOpcodes(unittest.TestCase):
 
         for s in well_formed:
             v = CMDParse.parse_cmd(s)
-            self.assertEqual(s, v.__str__())
-        pass
+            #self.assertEqual(s, v.__str__())
 
     def test_encode_complete(self):
 
         for s in well_formed:
-            v = CMDParse.parse_cmd(s)
+
+            iform = CMDParse.parse_cmd(s)
 
             try:
-                v.encode()
+                bform = iform.encode()
+
             except:
-                self.assertTrue(False, "encode {} is not implemented.".format(v.op))
+                self.assertTrue(False, "encode {} is not implemented.".format(iform.op))
+
+            try:
+                iform2 = Instr.decode(bform)
+            except:
+                self.assertTrue(False, "decode {} is not implemented.".format(iform.op))
+
+            self.assertEqual(iform, iform2, "error encoding and decoming {}.".format(s))
 
     def test_encode_jr(self):
         o = CMDParse.parse_cmd("jr $s0")
@@ -129,69 +138,50 @@ class TestOpcodes(unittest.TestCase):
         self.assertEqual(rs, IanMIPS.reg_dict["s1"])
         self.assertEqual(rt, IanMIPS.reg_dict["s2"])
 
-    def test_random_ops(self):
+    def test_encode_addi(self):
+        o = CMDParse.parse_cmd("addi $s0, $t0, 22")
 
-        for i in range(1000):
-            op = random.choice(IanMIPS.OPS)
+        o_bin = o.encode()
 
-            if op in IanMIPS.i_instr:
-                type = InstrType.I
-            elif op in IanMIPS.r_instr:
-                type = InstrType.R
-            elif op in IanMIPS.j_instr:
-                type = InstrType.J
-            elif op in IanMIPS.sp_instr:
-                type = InstrType.S
-            else:
-                print(op)
-                self.assertTrue(False)
+        op = Instr.extr_op(o_bin)
+        rs = Instr.extr_rs(o_bin)
+        rt = Instr.extr_rt(o_bin)
+        imm = Instr.extr_imm(o_bin)
 
-            if type == InstrType.R:
-                rs = random.randint(8, 25)
-                rt = random.randint(8, 25)
-                rd = random.randint(8, 25)
+        self.assertEqual(op, IanMIPS.op_dict["addi"])
+        self.assertEqual(rt, IanMIPS.reg_dict["s0"])
+        self.assertEqual(rs, IanMIPS.reg_dict["t0"])
+        self.assertEqual(imm, 22)
 
-                while len({rt, rs, rd}) != 3:
-                    rt = random.randint(8, 25)
-                    rd = random.randint(8, 25)
+    def test_encode_addi_negimm(self):
+        o = CMDParse.parse_cmd("addi $s0, $t0, -5")
 
-            elif type == InstrType.I:
-                rs = random.randint(8, 25)
-                rt = random.randint(8, 25)
+        o_bin = o.encode()
 
-                imm = random.randint(0, 2**16 - 1)
-                imm_hex = "0x{:x}".format(imm)
-                imm_list = [imm, imm_hex]
-                #print(imm_hex)
-                s_imm = random.randint(-2 ** 15, 2 ** 15 - 1)
-                s_imm_hex = "0x{:x}".format(np.uint16(s_imm))
-                #print(s_imm_hex)
+        op = Instr.extr_op(o_bin)
+        rs = Instr.extr_rs(o_bin)
+        rt = Instr.extr_rt(o_bin)
+        imm = np.int16(Instr.extr_imm(o_bin))
 
-                while len({rt, rs}) != 2:
-                    rt = random.randint(8, 25)
+        self.assertEqual(op, IanMIPS.op_dict["addi"])
+        self.assertEqual(rt, IanMIPS.reg_dict["s0"])
+        self.assertEqual(rs, IanMIPS.reg_dict["t0"])
+        self.assertEqual(imm, -5)
 
-                if op in ["lw", "lb", "sw", "sb"]:
-                    opstr = "{} ${}, {}(${})".format(op, IanMIPS.inv_reg_dict[rt], imm, IanMIPS.inv_reg_dict[rs])
-                elif op == "lui":
-                    opstr = "lui ${}, {}".format(IanMIPS.inv_reg_dict[rt], imm)
-                elif op in ["bgez", "bgezal", "blez", "bltz", "bltzal",]:
-                    opstr = "{} ${}, {}".format(op, IanMIPS.inv_reg_dict[rs], imm)
-                elif op in ["beq", "bne"]:
-                    # in beq and bne, rt and rs are reversed.
-                    opstr = "{} ${}, ${}, {}".format(op, IanMIPS.inv_reg_dict[rs], IanMIPS.inv_reg_dict[rt], imm)
-                else:
-                    opstr = "{} ${}, ${}, {}".format(op, IanMIPS.inv_reg_dict[rt], IanMIPS.inv_reg_dict[rs], imm)
+    def test_encode_addi_heximm(self):
+        o = CMDParse.parse_cmd("addi $s0, $t0, 0xa")
 
-                #print(opstr)
-            elif type == InstrType.J:
-                pass
-            elif type == InstrType.S:
-                opstr = op
-            else:
-                print(type)
-                self.assertTrue(False)
+        o_bin = o.encode()
 
-            pass
+        op = Instr.extr_op(o_bin)
+        rs = Instr.extr_rs(o_bin)
+        rt = Instr.extr_rt(o_bin)
+        imm = Instr.extr_imm(o_bin)
+
+        self.assertEqual(op, IanMIPS.op_dict["addi"])
+        self.assertEqual(rt, IanMIPS.reg_dict["s0"])
+        self.assertEqual(rs, IanMIPS.reg_dict["t0"])
+        self.assertEqual(imm, 10)
 
     def test_add(self):
         p = MIPSProcessor()
