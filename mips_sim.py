@@ -34,6 +34,10 @@ class IntegerOverflow(Exception):
     pass
 
 
+class SoftwareInterrupt(Exception):
+    pass
+
+
 class InstrType(Enum):
     R = 0
     I = 1
@@ -161,11 +165,13 @@ class CMDParse:
 
         if op_str[0] in CMDParse.cat_0:
             pass
+
         elif op_str[0] in CMDParse.cat_1:
             out.rd = op_str[1]
             out.rs = op_str[2]
             out.rt = op_str[3]
             out.args = [out.rd, out.rs, out.rt]
+
         elif op_str[0] in CMDParse.cat_2:
             out.rd = op_str[1]
             out.rt = op_str[2]
@@ -174,44 +180,54 @@ class CMDParse:
         elif op_str[0] in CMDParse.cat_3:
             out.rd = op_str[1]
             out.rt = op_str[2]
-            out.h = op_str[3]
-            out.args = [out.rd, out.rt, out.h]
+            out.shamt = op_str[3]
+            out.args = [out.rd, out.rt, out.shamt]
+
         elif op_str[0] in CMDParse.cat_4:
             out.rt = op_str[1]
             out.rs = op_str[2]
             out.imm = op_str[3]
             out.args = [out.rt, out.rs, out.imm]
+
         elif op_str[0] in CMDParse.cat_5:
             out.rt = op_str[1]
             out.imm = op_str[2]
             out.rs = op_str[3]
             out.args = [out.rt, out.imm, out.rs]
+
         elif op_str[0] in CMDParse.cat_6:
             out.rs = op_str[1]
             out.args = [out.rs]
+
         elif op_str[0] in CMDParse.cat_7:
             out.target = op_str[1]
             out.args = [out.target]
+
         elif op_str[0] in CMDParse.cat_8:
             out.rs = op_str[1]
             out.rt = op_str[2]
             out.args = [out.rs, out.rt]
+
         elif op_str[0] in CMDParse.cat_9:
             out.rd = op_str[1]
             out.args = [out.rd]
+
         elif op_str[0] in CMDParse.cat_10:
             out.rt = op_str[1]
             out.imm = op_str[2]
             out.args = [out.rt, out.imm]
+
         elif op_str[0] in CMDParse.cat_11:
             out.rs = op_str[1]
             out.imm = op_str[2]
             out.args = [out.rs, out.imm]
+
         elif op_str[0] in CMDParse.cat_12:
             out.rs = op_str[1]
             out.rt = op_str[2]
             out.imm = op_str[3]
             out.args = [out.rs, out.rt, out.imm]
+
         else:
             pass
 
@@ -220,9 +236,7 @@ class CMDParse:
 
 class IanMIPS:
 
-
-
-    # This has been checked once, could still be wrong. Kappa
+    # TODO Check this to make sure it is correct.
     op_dict = {
         "add":      0b000000,
         "addi":     0b001000,
@@ -283,6 +297,7 @@ class IanMIPS:
         "mfhi":     0b010000,
         "mflo":     0b010010,
         "mult":     0b011000,
+        "multu":    0b011001,
         "or":       0b100101,
         "sll":      0b000000,
         "sllv":     0b000100,
@@ -487,6 +502,86 @@ class Instr:
         self.offset = ""
         pass
 
+    @staticmethod
+    def conv_imm(imm):
+        try:
+            return int(imm)
+        except ValueError:
+            return int(imm, 16)
+
+
+    def encode(self):
+
+        #  0 -  1 -  2 -  3 -   4   -   5
+        # op - rs - rt - rd - shamt - funct
+        # op - rs - rt - imm
+        # op - rs - target
+
+        tmp_arr = np.zeros(6, dtype=np.uint32)
+        out = np.uint32(0)
+
+        if self.op == "noop":
+            return out
+
+        tmp_arr[0] = np.left_shift(IanMIPS.op_dict[self.op], 26)
+
+        if IanMIPS.op_dict[self.op] == 0:
+            tmp_arr[5] = IanMIPS.funct_dict[self.op]
+            if self.op == "jr":
+                tmp_arr[1] = np.left_shift(IanMIPS.reg_dict[self.rs], 21)
+                tmp_arr[2] = 0
+                tmp_arr[3] = 0
+                tmp_arr[4] = 0
+            elif self.op in ["sll", "srl", "sra"]:
+                tmp_arr[1] = 0
+                tmp_arr[2] = np.left_shift(IanMIPS.reg_dict[self.rt], 16)
+                tmp_arr[3] = np.left_shift(IanMIPS.reg_dict[self.rd], 11)
+                tmp_arr[4] = np.left_shift(self.conv_imm(self.shamt), 6)
+            elif self.op in ["mflo", "mfhi"]:
+                tmp_arr[1] = 0
+                tmp_arr[2] = 0
+                tmp_arr[3] = np.left_shift(IanMIPS.reg_dict[self.rd], 11)
+            elif self.op in ["mult", "multu", "div", "divu"]:
+                tmp_arr[1] = np.left_shift(IanMIPS.reg_dict[self.rs], 21)
+                tmp_arr[2] = np.left_shift(IanMIPS.reg_dict[self.rt], 16)
+            elif self.op == "syscall":
+                pass
+            else:
+                tmp_arr[1] = np.left_shift(IanMIPS.reg_dict[self.rs], 21)
+                tmp_arr[2] = np.left_shift(IanMIPS.reg_dict[self.rt], 16)
+                tmp_arr[3] = np.left_shift(IanMIPS.reg_dict[self.rd], 11)
+
+        elif IanMIPS.op_dict[self.op] == 1:
+            tmp_arr[1] = np.left_shift(IanMIPS.reg_dict[self.rs], 21)
+            tmp_arr[2] = np.left_shift(IanMIPS.b_instr[self.op], 16)
+            tmp_arr[3] = self.conv_imm(self.imm)
+        else:
+            # op - rs - rt - imm
+            if self.op in ["addi", "addiu", "andi", "beq", "bne", "lb", "lw", "ori", "sb", "slti", "sltiu", "sw", "xori"]:
+                tmp_arr[1] = np.left_shift(IanMIPS.reg_dict[self.rs], 21)
+                tmp_arr[2] = np.left_shift(IanMIPS.reg_dict[self.rt], 16)
+                tmp_arr[3] = self.conv_imm(self.imm)
+            elif self.op in ["blez"]:
+                tmp_arr[1] = np.left_shift(IanMIPS.reg_dict[self.rs], 21)
+                tmp_arr[2] = 0
+                tmp_arr[3] = self.conv_imm(self.imm)
+            elif self.op in ["j", "jal"]:
+                tmp_arr[1] = self.conv_imm(self.target)
+            elif self.op in ["lui"]:
+                tmp_arr[1] = 0
+                tmp_arr[2] = np.left_shift(IanMIPS.reg_dict[self.rt], 16)
+                tmp_arr[3] = self.conv_imm(self.imm)
+            else:
+                raise NotImplementedError()
+
+        for e in tmp_arr:
+            out = np.bitwise_or(out, e)
+
+        return out
+
+    def decode(self, word):
+        pass
+
     def init_from_word(self, instr):
 
         #print("instr = ", np.binary_repr(instr, width=32))
@@ -537,7 +632,7 @@ class Instr:
         elif self.op in CMDParse.cat_2:
             return "{} ${}, ${}, ${}".format(self.op, self.rd, self.rt, self.rs)
         elif self.op in CMDParse.cat_3:
-            return "{} ${}, ${}, {}".format(self.op, self.rd, self.rt, self.h)
+            return "{} ${}, ${}, {}".format(self.op, self.rd, self.rt, self.shamt)
         elif self.op in CMDParse.cat_4:
             # hex_imm = np.uint16(self.imm)
 
@@ -638,6 +733,7 @@ class MIPSProcessor:
             "beq": self._beq,
             "sub": self._sub,
             "subu": self._subu,
+            "syscall": self._syscall,
 
         }
 
@@ -688,6 +784,28 @@ class MIPSProcessor:
     def fetch(self):
 
         self.ir = np.uint32(self.mem[self.pc:self.pc + 4].view('uint32')[0])
+
+    def decode(self):
+
+        instr = Instr()
+
+        l_op = Instr.extr_op(self.ir)
+        instr.bin = self.ir
+
+        if l_op == 0:
+            if self.ir == 0:
+                instr.op = "noop"
+            else:
+                l_func = Instr.extr_funct(self.ir)
+                instr.op = IanMIPS.inv_funct_dict[l_func]
+        elif l_op == 1:
+            l_rt = Instr.extr_rt(self.ir)
+            instr.op = IanMIPS.inv_b_instr[l_rt]
+        else:
+            instr.op = IanMIPS.inv_op_dict[l_op]
+
+
+        raise TODOError()
 
     def do_instr(self, i):
 
@@ -761,6 +879,8 @@ class MIPSProcessor:
         if self.reg[rs] >= 0:
             self.reg[31] = self.pc + 1
             self.pc += offset
+
+        self.pc += 4
 
     def _bgtz(self, rs, offset):
         # Branch greater than zero
@@ -919,7 +1039,7 @@ class MIPSProcessor:
         self.pc += 4
 
     def _syscall(self):
-        raise TODOError()
+        raise SoftwareInterrupt()
 
     def _xor(self):
         raise TODOError()
@@ -930,3 +1050,17 @@ class MIPSProcessor:
 
 # Static checks to ensure everything is correct.
 assert(all([op in IanMIPS.op_dict.keys() for op in CMDParse.oplist]))
+
+assert(len(IanMIPS.funct_dict.values()) == len(set(IanMIPS.funct_dict.values())))
+
+for k, v in IanMIPS.op_dict.items():
+    if v == 0:
+        if k == "noop" or k == "syscall":
+            continue
+
+        assert(k in IanMIPS.funct_dict.keys())
+
+
+for k, v in IanMIPS.op_dict.items():
+    if v == 1:
+        assert(k in IanMIPS.b_instr.keys())

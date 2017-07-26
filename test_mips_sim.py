@@ -42,7 +42,7 @@ well_formed = [
     "ori $s0, $t1, 500",
     "sb $s0, 22($s1)",
     "sll $s0, $t6, 5",
-    "sllv $0, $t6, $t3",
+    "sllv $t0, $t6, $t3",
     "slt $s0, $t5, $t4",
     "slti $s0, $t3, -100",
     "sltiu $s0, $t3, 1000",
@@ -67,6 +67,67 @@ class TestOpcodes(unittest.TestCase):
             v = CMDParse.parse_cmd(s)
             self.assertEqual(s, v.__str__())
         pass
+
+    def test_encode_complete(self):
+
+        for s in well_formed:
+            v = CMDParse.parse_cmd(s)
+
+            try:
+                v.encode()
+            except:
+                self.assertTrue(False, "encode {} is not implemented.".format(v.op))
+
+    def test_encode_jr(self):
+        o = CMDParse.parse_cmd("jr $s0")
+
+        o_bin = o.encode()
+
+        op = Instr.extr_op(o_bin)
+        rs = Instr.extr_rs(o_bin)
+        rt = Instr.extr_rt(o_bin)
+        rd = Instr.extr_rd(o_bin)
+        shamt = Instr.extr_shamt(o_bin)
+        funct = Instr.extr_funct(o_bin)
+
+        self.assertEqual(op, 0)
+        self.assertEqual(rs, IanMIPS.reg_dict["s0"])
+        self.assertEqual(rt, 0)
+        self.assertEqual(rd, 0)
+        self.assertEqual(shamt, 0)
+        self.assertEqual(funct, IanMIPS.funct_dict["jr"])
+
+    def test_encode_bgez(self):
+        o = CMDParse.parse_cmd("bgez $s0, 1000")
+
+        o_bin = o.encode()
+
+        op = Instr.extr_op(o_bin)
+        rs = Instr.extr_rs(o_bin)
+        rt = Instr.extr_rt(o_bin)
+        imm = Instr.extr_imm(o_bin)
+
+        self.assertEqual(op, 1)
+        self.assertEqual(imm, 1000)
+        self.assertEqual(rs, IanMIPS.reg_dict["s0"])
+        self.assertEqual(rt, IanMIPS.b_instr[o.op])
+
+    def test_encode_add(self):
+        o = CMDParse.parse_cmd("add $s0, $s1, $s2")
+
+        o_bin = o.encode()
+
+        op = Instr.extr_op(o_bin)
+        rs = Instr.extr_rs(o_bin)
+        rt = Instr.extr_rt(o_bin)
+        rd = Instr.extr_rd(o_bin)
+        funct = Instr.extr_funct(o_bin)
+
+        self.assertEqual(op, 0)
+        self.assertEqual(funct, IanMIPS.funct_dict["add"])
+        self.assertEqual(rd, IanMIPS.reg_dict["s0"])
+        self.assertEqual(rs, IanMIPS.reg_dict["s1"])
+        self.assertEqual(rt, IanMIPS.reg_dict["s2"])
 
     def test_random_ops(self):
 
