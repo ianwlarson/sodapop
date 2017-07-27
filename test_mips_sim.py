@@ -82,12 +82,17 @@ class TestOpcodes(unittest.TestCase):
             except Exception as e:
                 self.assertTrue(False, "Unexpected exception encountered encoding `{}`\n{}".format(s, e))
 
+            self.assertEqual(iform.bin, bform)
+
+
             try:
                 iform2 = Instr.decode(bform)
             except NotImplementedError:
                 self.assertTrue(False, "decode {} is not implemented.".format(iform.op))
             except Exception as e:
                 self.assertTrue(False, "Unexpected exception encountered decoding `{}`\n{}".format(s, e))
+
+            self.assertEqual(iform2.bin, bform)
 
             self.assertEqual(iform, iform2, "error encoding and decoding {}.".format(s))
 
@@ -350,6 +355,133 @@ class TestOpcodes(unittest.TestCase):
 
         self.assertEqual(p.pc, 26)
 
+    def test_bgez(self):
+
+        raise NotImplementedError()
+
+    def test_bgezal(self):
+
+        raise NotImplementedError()
+
+    def test_bgtz(self):
+
+        raise NotImplementedError()
+
+    def test_blez(self):
+
+        raise NotImplementedError()
+
+    def test_bltz(self):
+
+        raise NotImplementedError()
+
+    def test_bltzal(self):
+
+        raise NotImplementedError()
+
+    def test_bne(self):
+
+        raise NotImplementedError()
+
+    def test_div(self):
+
+        raise NotImplementedError()
+
+    def test_divu(self):
+
+        raise NotImplementedError()
+
+    def test_j(self):
+
+        raise NotImplementedError()
+
+    def test_jal(self):
+
+        raise NotImplementedError()
+
+    def test_jr(self):
+
+        raise NotImplementedError()
+
+    def test_lb(self):
+
+        raise NotImplementedError()
+
+    def test_lui(self):
+
+        raise NotImplementedError()
+
+    def test_lw(self):
+
+        raise NotImplementedError()
+
+    def test_mfhi(self):
+
+        raise NotImplementedError()
+
+    def test_mflo(self):
+
+        raise NotImplementedError()
+
+    def test_mult(self):
+
+        raise NotImplementedError()
+
+    def test_multu(self):
+
+        raise NotImplementedError()
+
+    def test_noop(self):
+
+        raise NotImplementedError()
+
+    def test_or(self):
+
+        raise NotImplementedError()
+
+    def test_ori(self):
+
+        raise NotImplementedError()
+
+    def test_sb(self):
+
+        raise NotImplementedError()
+
+    def test_sll(self):
+
+        raise NotImplementedError()
+
+    def test_sllv(self):
+
+        raise NotImplementedError()
+
+    def test_slt(self):
+
+        raise NotImplementedError()
+
+    def test_slti(self):
+
+        raise NotImplementedError()
+
+    def test_sltiu(self):
+
+        raise NotImplementedError()
+
+    def test_sltu(self):
+
+        raise NotImplementedError()
+
+    def test_sra(self):
+        raise NotImplementedError()
+
+    def test_srl(self):
+
+        raise NotImplementedError()
+
+    def test_srlv(self):
+
+        raise NotImplementedError()
+
     def test_sub(self):
         p = MIPSProcessor()
 
@@ -406,6 +538,22 @@ class TestOpcodes(unittest.TestCase):
         p.reg[12] = 1
         p._subu(10, 11, 12)
         self.assertEqual(p.reg[10], 2 ** 32 - 1)
+
+    def test_sw(self):
+
+        raise NotImplementedError()
+
+    def test_syscall(self):
+
+        raise NotImplementedError()
+
+    def test_xor(self):
+
+        raise NotImplementedError()
+
+    def test_xori(self):
+
+        raise NotImplementedError()
 
 if __name__ == "__main__":
     random.seed()

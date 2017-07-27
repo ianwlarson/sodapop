@@ -122,9 +122,6 @@ op_enum = {
 for k, v in op_enum.items():
     assert(v.name.lower() == k)
 
-class TODOError(Exception):
-    pass
-
 
 class IllegalInstructionError(Exception):
     pass
@@ -861,7 +858,6 @@ class MIPSProcessor:
             name.lower(): getattr(self, "_{}".format(name.lower())) for name, _ in MIPSI.__members__.items()
         }
 
-        # TODO Do something more smarter here.
         np.seterr(over="call")
         np.seterrcall(self.errcall)
 
@@ -904,25 +900,7 @@ class MIPSProcessor:
 
     def decode(self):
 
-        instr = Instr()
-
-        l_op = Instr.extr_op(self.ir)
-        instr.bin = self.ir
-
-        if l_op == 0:
-            if self.ir == 0:
-                instr.op = "noop"
-            else:
-                l_func = Instr.extr_funct(self.ir)
-                instr.op = IanMIPS.inv_funct_dict[l_func]
-        elif l_op == 1:
-            l_rt = Instr.extr_rt(self.ir)
-            instr.op = IanMIPS.inv_b_instr[l_rt]
-        else:
-            instr.op = IanMIPS.inv_op_dict[l_op]
-
-
-        raise TODOError()
+        instr = Instr.decode(self.ir)
 
     def do_instr(self, i):
 
