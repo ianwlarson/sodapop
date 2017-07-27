@@ -77,15 +77,19 @@ class TestOpcodes(unittest.TestCase):
             try:
                 bform = iform.encode()
 
-            except:
+            except NotImplementedError:
                 self.assertTrue(False, "encode {} is not implemented.".format(iform.op))
+            except Exception as e:
+                self.assertTrue(False, "Unexpected exception encountered encoding `{}`\n{}".format(s, e))
 
             try:
                 iform2 = Instr.decode(bform)
-            except:
+            except NotImplementedError:
                 self.assertTrue(False, "decode {} is not implemented.".format(iform.op))
+            except Exception as e:
+                self.assertTrue(False, "Unexpected exception encountered decoding `{}`\n{}".format(s, e))
 
-            self.assertEqual(iform, iform2, "error encoding and decoming {}.".format(s))
+            self.assertEqual(iform, iform2, "error encoding and decoding {}.".format(s))
 
     def test_encode_jr(self):
         o = CMDParse.parse_cmd("jr $s0")
@@ -335,7 +339,7 @@ class TestOpcodes(unittest.TestCase):
 
         p = MIPSProcessor()
 
-        beq_cmd = CMDParse.parse_cmd("beq $t0, $s0, 3")
+        beq_cmd = CMDParse.parse_cmd("beq $t0, $s0, 0x3")
 
         p.pc = 10
 
@@ -344,7 +348,7 @@ class TestOpcodes(unittest.TestCase):
 
         p.do_instr(beq_cmd)
 
-        self.assertEqual(p.pc, 13)
+        self.assertEqual(p.pc, 26)
 
     def test_sub(self):
         p = MIPSProcessor()
@@ -382,7 +386,7 @@ class TestOpcodes(unittest.TestCase):
         self.assertEqual(p.reg[19], 11)
 
     def test_subu(self):
-        """ Test addu $rd, $rs, $rt """
+        """ Test subu $rd, $rs, $rt """
         p = MIPSProcessor()
 
         p.reg[10] = 11

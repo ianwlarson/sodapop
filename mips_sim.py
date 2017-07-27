@@ -71,8 +71,12 @@ class MIPSI(Enum):
     XORI = 44
 
 op_enum = {
-    "add": MIPSI.ADD, "addi": MIPSI.ADDI, "addiu": MIPSI.ADDIU, "addu": MIPSI.ADDU,
-    "and": MIPSI.AND, "andi": MIPSI.ANDI,
+    "add":      MIPSI.ADD,
+    "addi":     MIPSI.ADDI,
+    "addiu":    MIPSI.ADDIU,
+    "addu":     MIPSI.ADDU,
+    "and":      MIPSI.AND,
+    "andi":     MIPSI.ANDI,
     "beq":      MIPSI.BEQ,
     "bgez":     MIPSI.BGEZ,
     "bgezal":   MIPSI.BGEZAL,
@@ -113,6 +117,10 @@ op_enum = {
     "xor":      MIPSI.XOR,
     "xori":     MIPSI.XORI,
 }
+
+# Sanity check
+for k, v in op_enum.items():
+    assert(v.name.lower() == k)
 
 class TODOError(Exception):
     pass
@@ -586,9 +594,10 @@ class Instr:
         self.rd = ""
         self.shamt = ""
         self.target = ""
-        self.imm = ""
+        self.imm = np.uint16(0)
         self.offset = ""
         self.args = []
+        self.bin = np.uint32(0)
         pass
 
     @staticmethod
@@ -849,17 +858,7 @@ class MIPSProcessor:
         self.over = False
 
         self.ops = {
-            "add": self._add,
-            "addi": self._addi,
-            "addiu": self._addiu,
-            "addu": self._addu,
-            "and": self._and,
-            "andi": self._andi,
-            "beq": self._beq,
-            "sub": self._sub,
-            "subu": self._subu,
-            "syscall": self._syscall,
-
+            name.lower(): getattr(self, "_{}".format(name.lower())) for name, _ in MIPSI.__members__.items()
         }
 
         # TODO Do something more smarter here.
@@ -887,29 +886,17 @@ class MIPSProcessor:
 
         if type(program) is not np.ndarray:
             raise ValueError()
-        elif type(program[0]) is not np.uint32:
+        elif type(program[0]) is not np.uint8:
             raise ValueError()
 
-        self.mem[start_addr:start_addr + len(program)] = program
+        try:
+            self.mem[start_addr:start_addr + len(program)] = program
+        except IndexError:
+            raise MemoryError()
 
-    def execute_prog(self, program):
+    def execute_prog(self, start_point):
 
-        raise TODOError()
-
-        if type(program) is not list:
-            raise ValueError()
-
-        self.pc = 0
-        self.instr_c = 0
-
-        while True:
-            try:
-                instr = program[self.pc]
-                self.pc += 1
-                self.instr_c += 1
-                self.ops[instr.op](*self.argconv(instr.args))
-            except IndexError:
-                break
+        raise NotImplementedError()
 
     def fetch(self):
 
@@ -946,6 +933,7 @@ class MIPSProcessor:
 
     def _add(self, rd, rs, rt):
         # Add two 32 bit GPRs, store in third. Traps on overflow.
+        self.pc += 4
         res = np.int32(self.reg[rs]) + np.int32(self.reg[rt])
 
         if self.over:
@@ -956,6 +944,7 @@ class MIPSProcessor:
 
     def _addi(self, rt, rs, imm):
         # Add 16 bit signed imm to rs, then store in rt. Traps on overflow.
+        self.pc += 4
         res = np.int32(self.reg[rs]) + np.int16(imm)
 
         if self.over:
@@ -966,179 +955,224 @@ class MIPSProcessor:
 
     def _addiu(self, rt, rs, imm):
         # Add 16 bit signed imm to rs, then store in rt.
+        self.pc += 4
         self.reg[rt] = self.reg[rs] + np.int16(imm)
 
     def _addu(self, rd, rs, rt):
         # Add two 32 bit GPRs, store in third.
-
+        self.pc += 4
         self.reg[rd] = self.reg[rs] + self.reg[rt]
 
     def _and(self, rd, rs, rt):
         # Bitwise and of two GPR, stores in a third.
-
+        self.pc += 4
         self.reg[rd] = np.bitwise_and(self.reg[rs], self.reg[rt])
 
     def _andi(self, rt, rs, imm):
         # Bitwise and of a GPR and an immediate value, stores in second GPR.
-
+        self.pc += 4
         self.reg[rt] = np.bitwise_and(self.reg[rs], np.uint32(imm))
 
     def _beq(self, rs, rt, offset):
-
-        if offset < 0:
-            offset -= 1
+        # Branch if two specified GPRs are equal.
+        self.pc += 4
 
         if self.reg[rs] == self.reg[rt]:
-            self.pc += offset
+            self.pc += offset * 4
 
     def _bgez(self, rs, offset):
-
-        if offset < 0:
-            offset -= 1
+        # Branch on greater than or equal to 0.
+        self.pc += 4
 
         if self.reg[rs] >= 0:
-            self.pc += offset
+            self.pc += offset * 4
 
     def _bgezal(self, rs, offset):
         # Branch greater than or equal to zero and link
-
-        if offset < 0:
-            offset -= 1
+        self.pc += 4
 
         if self.reg[rs] >= 0:
-            self.reg[31] = self.pc + 1
-            self.pc += offset
-
-        self.pc += 4
+            self.reg[31] = self.pc
+            self.pc += offset * 4
 
     def _bgtz(self, rs, offset):
         # Branch greater than zero
-
-        if offset < 0:
-            offset -= 1
+        self.pc += 4
 
         if self.reg[rs] > 0:
-            self.pc += offset
+            self.pc += offset * 4
 
     def _blez(self, rs, offset):
         # Branch less than or equal to zero
-        if offset < 0:
-            offset -= 1
+        self.pc += 4
 
         if self.reg[rs] <= 0:
-            self.pc += offset
+            self.pc += offset * 4
 
     def _bltz(self, rs, offset):
         # Branch less than zero
-        if offset < 0:
-            offset -= 1
+        self.pc += 4
 
         if self.reg[rs] < 0:
-            self.pc += offset
+            self.pc += offset * 4
 
     def _bltzal(self, rs, offset):
         # Branch less than zero and link
-        if offset < 0:
-            offset -= 1
-
+        self.pc += 4
         if self.reg[rs] < 0:
-            self.reg[31] = self.pc + 1
-            self.pc += offset
+            self.reg[31] = self.pc
+            self.pc += offset * 4
 
     def _bne(self, rs, rt, offset):
-        if offset < 0:
-            offset -= 1
+        # Branch if the contents of two GPRs are not equal
+        self.pc += 4
 
         if self.reg[rs] != self.reg[rt]:
-            self.pc += offset
+            self.pc += offset * 4
 
     def _div(self, rs, rt):
+        self.pc += 4
         a = np.int32(self.reg[rs])
         b = np.int32(self.reg[rt])
         self.lo = a / b
         self.hi = a % b
 
     def _divu(self, rs, rt):
+        self.pc += 4
         a = np.uint32(self.reg[rs])
         b = np.uint32(self.reg[rt])
         self.lo = a / b
         self.hi = a % b
 
-    def _j(self):
-        raise TODOError()
+    def _j(self, target):
+        self.pc = np.bitwise_or(np.bitwise_and(0xf0000000, self.pc), target * 4)
 
-    def _jal(self):
-        raise TODOError()
+    def _jal(self, target):
+        self.reg[31] = self.pc + 8
+        self.pc = np.bitwise_or(np.bitwise_and(0xf0000000, self.pc), target * 4)
 
-    def _jr(self):
-        raise TODOError()
+    def _jr(self, rs):
+        self.pc = self.reg[rs]
 
-    def _lb(self):
-        raise TODOError()
+    def _lb(self, rt, offset, rs):
 
-    def _lui(self):
-        raise TODOError()
+        start = rs + offset * 4
+
+        self.reg[rt] = self.mem[start]
+
+    def _lui(self, rt, imm):
+
+        self.reg[rt] = np.left_shift(imm, 16)
 
     def _lw(self, rt, offset, rs):
         # c = np.uint32(*a[start:start + 4].view('uint32'))
 
-        start = rt + offset*4
+        start = rs + offset*4
 
         self.reg[rt] = np.uint32(self.mem[start:start + 4].view('uint32')[0])
 
         self.pc += 4
 
-    def _mfhi(self):
-        raise TODOError()
+    def _mfhi(self, rd):
+        self.pc += 4
+        self.reg[rd] = self.hi
 
-    def _mflo(self):
-        raise TODOError()
+    def _mflo(self, rd):
+        self.pc += 4
+        self.reg[rd] = self.lo
 
-    def mult(self):
-        raise TODOError()
+    def _mult(self, rs, rt):
+        self.pc += 4
+        res = np.int64(np.int32(self.reg[rs])) * np.int64(np.int32(self.reg[rt]))
+        self.hi = np.right_shift(res, 32)
+        self.lo = np.bitwise_and(res, 0xffffffff)
 
-    def multu(self):
-        raise TODOError()
+    def _multu(self, rs, rt):
+        self.pc += 4
+        res = np.uint64(self.reg[rs]) * np.uint64(self.reg[rt])
+        self.hi = np.right_shift(res, 32)
+        self.lo = np.bitwise_and(res, 0xffffffff)
 
-    def noop(self):
+    def _noop(self):
 
         self.pc += 4
 
-    def _or(self):
-        raise TODOError()
+    def _or(self, rd, rs, rt):
+        self.pc += 4
 
-    def _ori(self):
-        raise TODOError()
+        self.reg[rd] = np.bitwise_or(self.reg[rs], self.reg[rt])
 
-    def _sb(self):
-        raise TODOError()
+    def _ori(self, rt, rs, imm):
+        self.pc += 4
 
-    def _sll(self):
-        raise TODOError()
+        self.reg[rt] = np.bitwise_or(self.reg[rs], imm)
 
-    def _sllv(self):
-        raise TODOError()
+    def _sb(self, rt, offset, rs):
 
-    def _slt(self):
-        raise TODOError()
+        start = self.reg[rs] + offset * 4
 
-    def _slti(self):
-        raise TODOError()
+        self.mem[start] = np.uint8(np.bitwise_and(0xff, self.reg[rt]))
 
-    def _sltiu(self):
-        raise TODOError()
+        self.pc += 4
 
-    def _sltu(self):
-        raise TODOError()
+    def _sll(self, rd, rt, shamt):
+        self.pc += 4
 
-    def _sra(self):
-        raise TODOError()
+        self.reg[rd] = np.left_shift(self.reg[rt], shamt)
 
-    def _srl(self):
-        raise TODOError()
+    def _sllv(self, rd, rt, rs):
+        self.pc += 4
 
-    def _srlv(self):
-        raise TODOError()
+        self.reg[rd] = np.left_shift(self.reg[rt], self.reg[rs])
+
+
+    def _slt(self, rd, rs, rt):
+        self.pc += 4
+
+        if np.int32(self.reg[rs]) < np.int32(self.reg[rt]):
+            self.reg[rd] = 1
+        else:
+            self.reg[rd] = 0
+
+    def _slti(self, rt, rs, imm):
+        self.pc += 4
+
+        if np.int32(self.reg[rs]) < np.int32(imm):
+            self.reg[rt] = 1
+        else:
+            self.reg[rt] = 0
+
+    def _sltiu(self, rt, rs, imm):
+        self.pc += 4
+
+        if self.reg[rs] < np.int16(imm):
+            self.reg[rt] = 1
+        else:
+            self.reg[rt] = 0
+
+    def _sltu(self, rd, rs, rt):
+        self.pc += 4
+
+        if self.reg[rs] < self.reg[rt]:
+            self.reg[rd] = 1
+        else:
+            self.reg[rd] = 0
+
+    def _sra(self, rd, rt, shamt):
+        self.pc += 4
+
+        self.reg[rd] = np.right_shift(np.int32(self.reg[rt]), shamt)
+
+
+    def _srl(self, rd, rt, shamt):
+        self.pc += 4
+
+        self.reg[rd] = np.right_shift(self.reg[rt], shamt)
+
+    def _srlv(self, rd, rs, rt):
+        self.pc += 4
+
+        self.reg[rd] = np.right_shift(self.reg[rt], self.reg[rs])
 
     def _sub(self, rd, rs, rt):
         # Subtact two 32 bit GPRs, store in third. Traps on overflow
@@ -1168,13 +1202,16 @@ class MIPSProcessor:
         self.pc += 4
 
     def _syscall(self):
+        self.pc += 4
         raise SoftwareInterrupt()
 
-    def _xor(self):
-        raise TODOError()
+    def _xor(self, rd, rs, rt):
+        self.pc += 4
+        self.reg[rd] = np.bitwise_xor(self.reg[rs], self.reg[rt])
 
-    def _xori(self):
-        raise TODOError()
+    def _xori(self, rt, rs, imm):
+        self.pc += 4
+        self.reg[rt] = np.bitwise_xor(self.reg[rs], imm)
 
 
 # Static checks to ensure everything is correct.
