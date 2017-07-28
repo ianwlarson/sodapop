@@ -865,8 +865,21 @@ class MIPSProcessor:
     def lo(self, value):
         self._lo = np.uint32(value)
 
+    @property
+    def reg(self):
+        return self._reg
+
+    @property
+    def sreg(self):
+        return np.int32(self._reg)
+
+    @sreg.setter
+    def sreg(self, value):
+        raise ValueError("Cannot assign to sreg!!")
+
     def __init__(self, cache_size=1024):
-        self.reg = np.zeros(32, dtype=np.uint32)
+
+        self._reg = np.zeros(32, dtype=np.uint32)
 
         self._hi = np.uint32(0)
         self._lo = np.uint32(0)
@@ -881,6 +894,8 @@ class MIPSProcessor:
 
         self.mem = np.empty(cache_size, dtype='uint8')
 
+        self.flush_cache()
+
         self.over = False
 
         self.ops = {
@@ -889,6 +904,10 @@ class MIPSProcessor:
 
         np.seterr(over="call")
         np.seterrcall(self.errcall)
+
+    def flush_cache(self):
+
+        self.mem.fill(0)
 
     def load_program(self, start_addr, program):
 
@@ -924,7 +943,7 @@ class MIPSProcessor:
     def _add(self, rd, rs, rt):
         # Add two 32 bit GPRs, store in third. Traps on overflow.
         self.pc += 4
-        res = np.int32(self.reg[rs]) + np.int32(self.reg[rt])
+        res = self.sreg[rs] + self.sreg[rt]
 
         if self.over:
             self.over = False
@@ -935,7 +954,7 @@ class MIPSProcessor:
     def _addi(self, rt, rs, imm):
         # Add 16 bit signed imm to rs, then store in rt. Traps on overflow.
         self.pc += 4
-        res = np.int32(self.reg[rs]) + np.int16(imm)
+        res = self.sreg[rs] + np.int16(imm)
 
         if self.over:
             self.over = False
@@ -981,7 +1000,7 @@ class MIPSProcessor:
         # Branch greater than or equal to zero and link
         self.pc += 4
 
-        if np.int32(self.reg[rs]) >= 0:
+        if self.sreg[rs] >= 0:
             self.reg[31] = self.pc + 4
             self.pc += offset * 4
 
@@ -989,14 +1008,14 @@ class MIPSProcessor:
         # Branch greater than zero
         self.pc += 4
 
-        if np.int32(self.reg[rs]) > 0:
+        if self.sreg[rs] > 0:
             self.pc += offset * 4
 
     def _blez(self, rs, offset):
         # Branch less than or equal to zero
         self.pc += 4
 
-        if np.int32(self.reg[rs]) <= 0:
+        if self.sreg[rs] <= 0:
             self.pc += offset * 4
 
     def _bltz(self, rs, offset):
@@ -1009,7 +1028,7 @@ class MIPSProcessor:
     def _bltzal(self, rs, offset):
         # Branch less than zero and link
         self.pc += 4
-        if np.int32(self.reg[rs]) < 0:
+        if self.sreg[rs] < 0:
             self.reg[31] = self.pc + 4
             self.pc += offset * 4
 
@@ -1022,17 +1041,17 @@ class MIPSProcessor:
 
     def _div(self, rs, rt):
         self.pc += 4
-        a = np.int32(self.reg[rs])
-        b = np.int32(self.reg[rt])
-        self.lo = np.uint32(a / b)
-        self.hi = np.uint32(a % b)
+        a = self.sreg[rs]
+        b = self.sreg[rt]
+        self.lo = a / b
+        self.hi = a % b
 
     def _divu(self, rs, rt):
         self.pc += 4
-        a = np.uint32(self.reg[rs])
-        b = np.uint32(self.reg[rt])
-        self.lo = np.uint32(a / b)
-        self.hi = np.uint32(a % b)
+        a = self.reg[rs]
+        b = self.reg[rt]
+        self.lo = a / b
+        self.hi = a % b
 
     def _j(self, target):
 
@@ -1082,7 +1101,7 @@ class MIPSProcessor:
 
     def _mult(self, rs, rt):
         self.pc += 4
-        res = np.int64(np.int32(self.reg[rs])) * np.int64(np.int32(self.reg[rt]))
+        res = np.int64(self.sreg[rs]) * np.int64(self.sreg[rt])
         self.hi = np.right_shift(res, 32)
         self.lo = np.bitwise_and(res, 0xffffffff)
 
@@ -1198,10 +1217,12 @@ class MIPSProcessor:
     def _sw(self, rt, offset, rs):
         #a[start:start + 4] = np.uint32([c]).view('uint8')
         self.pc += 4
-        start = self.reg[rs] + np.int16(offset)
-        self.mem[start:start + 4] = np.uint32([self.reg[rt]]).view('uint8')
+        eff_addr = self.reg[rs] + np.int16(offset)
 
+        if eff_addr % 4 != 0:
+            raise AddressError
 
+        self.mem[eff_addr:eff_addr + 4] = np.uint32([self.reg[rt]]).view('uint8')
 
     def _syscall(self):
         self.pc += 4

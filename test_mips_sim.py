@@ -993,6 +993,17 @@ class TestOpcodes(unittest.TestCase):
 
         self.assertListEqual(list(p.mem[0x2f8:0x2f8 + 4]), [0xef, 0xbe, 0xad, 0xde])
 
+        the_cmd = CMDParse.parse_cmd("sw $s0, 0($s1)")
+
+        p.reg[16] = 0xdeadbeef
+        p.reg[17] = 1
+
+        try:
+            p.do_instr(the_cmd)
+            self.assertTrue(False, "Cannot store to not naturally aligned memory addresses.")
+        except AddressError:
+            pass
+
     def test_syscall(self):
 
         p = MIPSProcessor()
