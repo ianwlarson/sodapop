@@ -5,7 +5,8 @@ import random
 
 import numpy as np
 
-from mips_sim import IanMIPS, Instr, IllegalInstructionError, CMDParse, MIPSProcessor, IntegerOverflow
+from mips_sim import IanMIPS, Instr, IllegalInstructionError,\
+    CMDParse, MIPSProcessor, IntegerOverflow, AddressError, SoftwareInterrupt
 
 well_formed = [
     "add $s0, $t0, $t1",
@@ -357,130 +358,571 @@ class TestOpcodes(unittest.TestCase):
 
     def test_bgez(self):
 
-        raise NotImplementedError()
+        p = MIPSProcessor()
+
+        bgez_cmd = CMDParse.parse_cmd("bgez $s0, 0xa")
+
+        p.pc = 10
+
+        p.reg[16] = np.uint32(-5)
+
+        p.do_instr(bgez_cmd)
+
+        self.assertEqual(p.pc, 14)
+
+        p.pc = 10
+        p.reg[16] = 0
+        p.do_instr(bgez_cmd)
+
+        self.assertEqual(p.pc, 54)
+
+        p.pc = 10
+        p.reg[16] = 22
+        p.do_instr(bgez_cmd)
+
+        self.assertEqual(p.pc, 54)
 
     def test_bgezal(self):
 
-        raise NotImplementedError()
+        p = MIPSProcessor()
+
+        bgez_cmd = CMDParse.parse_cmd("bgezal $s0, 0xa")
+
+        p.pc = 10
+
+        p.reg[16] = np.uint32(-5)
+        p.reg[31] = 0
+
+        p.do_instr(bgez_cmd)
+
+        self.assertEqual(p.pc, 14)
+        self.assertEqual(p.reg[31], 0)
+
+        p.pc = 10
+        p.reg[16] = 0
+        p.reg[31] = 0
+        p.do_instr(bgez_cmd)
+
+        self.assertEqual(p.pc, 54)
+        self.assertEqual(p.reg[31], 18)
+
+        p.pc = 10
+        p.reg[16] = 22
+        p.reg[31] = 0
+        p.do_instr(bgez_cmd)
+
+        self.assertEqual(p.pc, 54)
+        self.assertEqual(p.reg[31], 18)
 
     def test_bgtz(self):
 
-        raise NotImplementedError()
+        p = MIPSProcessor()
+
+        bgez_cmd = CMDParse.parse_cmd("bgtz $s0, 0xa")
+
+        p.pc = 10
+
+        p.reg[16] = np.uint32(-5)
+
+        p.do_instr(bgez_cmd)
+
+        self.assertEqual(p.pc, 14)
+
+        p.pc = 10
+        p.reg[16] = 0
+        p.do_instr(bgez_cmd)
+
+        self.assertEqual(p.pc, 14)
+
+        p.pc = 10
+        p.reg[16] = 22
+        p.do_instr(bgez_cmd)
+
+        self.assertEqual(p.pc, 54)
 
     def test_blez(self):
 
-        raise NotImplementedError()
+        p = MIPSProcessor()
+
+        bgez_cmd = CMDParse.parse_cmd("blez $s0, 0xa")
+
+        p.pc = 10
+
+        p.reg[16] = np.uint32(-5)
+
+        p.do_instr(bgez_cmd)
+
+        self.assertEqual(p.pc, 54)
+
+        p.pc = 10
+        p.reg[16] = 0
+        p.do_instr(bgez_cmd)
+
+        self.assertEqual(p.pc, 54)
+
+        p.pc = 10
+        p.reg[16] = 22
+        p.do_instr(bgez_cmd)
+
+        self.assertEqual(p.pc, 14)
 
     def test_bltz(self):
 
-        raise NotImplementedError()
+        p = MIPSProcessor()
+
+        bgez_cmd = CMDParse.parse_cmd("bltz $s0, 0xa")
+
+        p.pc = 10
+
+        p.reg[16] = np.uint32(-5)
+
+        p.do_instr(bgez_cmd)
+
+        self.assertEqual(p.pc, 54)
+
+        p.pc = 10
+        p.reg[16] = 0
+        p.do_instr(bgez_cmd)
+
+        self.assertEqual(p.pc, 14)
+
+        p.pc = 10
+        p.reg[16] = 22
+        p.do_instr(bgez_cmd)
+
+        self.assertEqual(p.pc, 14)
 
     def test_bltzal(self):
 
-        raise NotImplementedError()
+        p = MIPSProcessor()
+
+        the_cmd = CMDParse.parse_cmd("bltzal $s0, 0xa")
+
+        p.pc = 10
+
+        p.reg[16] = np.uint32(-5)
+        p.reg[31] = 0
+
+        p.do_instr(the_cmd)
+
+        self.assertEqual(p.pc, 54)
+        self.assertEqual(p.reg[31], 18)
+
+        p.pc = 10
+        p.reg[16] = 0
+        p.reg[31] = 0
+        p.do_instr(the_cmd)
+
+        self.assertEqual(p.pc, 14)
+        self.assertEqual(p.reg[31], 0)
+
+        p.pc = 10
+        p.reg[16] = 22
+        p.reg[31] = 0
+        p.do_instr(the_cmd)
+
+        self.assertEqual(p.pc, 14)
+        self.assertEqual(p.reg[31], 0)
 
     def test_bne(self):
 
-        raise NotImplementedError()
+        p = MIPSProcessor()
+
+        the_cmd = CMDParse.parse_cmd("bne $t0, $s0, 0xa")
+
+        p.pc = 10
+
+        p.reg[8] = 10
+        p.reg[16] = 10
+
+        p.do_instr(the_cmd)
+
+        self.assertEqual(p.pc, 14)
+
+        p.pc = 10
+
+        p.reg[8] = 10
+        p.reg[16] = 9
+
+        p.do_instr(the_cmd)
+
+        self.assertEqual(p.pc, 54)
 
     def test_div(self):
 
-        raise NotImplementedError()
+        p = MIPSProcessor()
+
+        the_cmd = CMDParse.parse_cmd("div $s0, $s1")
+
+        p.reg[16] = 14
+        p.reg[17] = 4
+
+        p.do_instr(the_cmd)
+
+        self.assertEqual(p.hi, 2)
+        self.assertEqual(p.lo, 3)
+
+        p.reg[16] = np.uint32(-14)
+        p.reg[17] = 4
+
+        p.do_instr(the_cmd)
+
+        self.assertEqual(p.hi, 2)
+        self.assertEqual(np.int32(p.lo), -3)
 
     def test_divu(self):
 
-        raise NotImplementedError()
+        p = MIPSProcessor()
+
+        the_cmd = CMDParse.parse_cmd("divu $s0, $s1")
+
+        p.reg[16] = 14
+        p.reg[17] = 4
+
+        p.do_instr(the_cmd)
+
+        self.assertEqual(p.hi, 2)
+        self.assertEqual(p.lo, 3)
+
+        p.reg[16] = np.uint32(-14)
+        p.reg[17] = 4
+
+        p.do_instr(the_cmd)
+
+        self.assertEqual(p.hi, 2)
+        self.assertEqual(p.lo, 1073741820)
 
     def test_j(self):
 
-        raise NotImplementedError()
+        p = MIPSProcessor()
+
+        the_cmd = CMDParse.parse_cmd("j 0xf")
+
+        p.pc = np.uint32(0xa)
+        p.do_instr(the_cmd)
+
+        self.assertEqual(p.pc, 0xf * 4)
+
+        p.pc = np.uint32(0xa00000ba)
+        p.do_instr(the_cmd)
+
+        self.assertEqual(p.pc, np.bitwise_or(0xa0000000, 0xf * 4))
 
     def test_jal(self):
 
-        raise NotImplementedError()
+        p = MIPSProcessor()
+
+        the_cmd = CMDParse.parse_cmd("jal 0xf")
+
+        p.pc = np.uint32(0xa)
+        p.reg[31] = 0x0
+        p.do_instr(the_cmd)
+
+        self.assertEqual(p.pc, 0xf * 4)
+        self.assertEqual(p.reg[31], 0xa + 8)
+
+        p.pc = np.uint32(0xa00000ba)
+        p.reg[31] = 0x0
+        p.do_instr(the_cmd)
+
+        self.assertEqual(p.pc, np.bitwise_or(0xa0000000, 0xf * 4))
+        self.assertEqual(p.reg[31], 0xa00000ba + 8)
 
     def test_jr(self):
 
-        raise NotImplementedError()
+        p = MIPSProcessor()
+
+        the_cmd = CMDParse.parse_cmd("jr $s0")
+
+        p.pc = np.uint32(0xa)
+        p.reg[16] = 0xf * 4
+        p.do_instr(the_cmd)
+
+        self.assertEqual(p.pc, 0xf * 4)
+
+        p.pc = np.uint32(0xa)
+        p.reg[16] = 0xf
+        try:
+            p.do_instr(the_cmd)
+            self.assertTrue(False, "Branching to a non 4-byte aligned address isn't allowed.")
+        except AddressError:
+            pass
 
     def test_lb(self):
 
-        raise NotImplementedError()
+        p = MIPSProcessor()
+
+        the_cmd = CMDParse.parse_cmd("lb $s0, 4($s1)")
+
+        p.mem[0x2f8] = 77
+        p.reg[16] = 0x0
+        p.reg[17] = 0x2f8 - 4
+        p.do_instr(the_cmd)
+
+        self.assertEqual(p.reg[16], 77)
+
+        p.mem[0x2f8] = np.uint8(-96)
+        p.reg[16] = 0x0
+        p.reg[17] = 0x2f8 - 4
+        p.do_instr(the_cmd)
+
+        self.assertEqual(np.int32(p.reg[16]), -96)
 
     def test_lui(self):
 
-        raise NotImplementedError()
+        p = MIPSProcessor()
+
+        the_cmd = CMDParse.parse_cmd("lui $s0, 0xabba")
+
+        p.reg[16] = 0x0
+
+        p.do_instr(the_cmd)
+
+        self.assertEqual(p.reg[16], 0xabba0000)
 
     def test_lw(self):
 
-        raise NotImplementedError()
+        p = MIPSProcessor()
+
+        the_cmd = CMDParse.parse_cmd("lw $s0, 4($s1)")
+
+        p.mem[0x2f8: 0x2f8 + 4] = np.uint32([0xdeadbeef]).view('uint8')
+        p.reg[16] = 0x0
+        p.reg[17] = 0x2f8 - 4
+        p.do_instr(the_cmd)
+
+        self.assertEqual(p.reg[16], 0xdeadbeef)
 
     def test_mfhi(self):
 
-        raise NotImplementedError()
+        p = MIPSProcessor()
+
+        the_cmd = CMDParse.parse_cmd("mfhi $s0")
+
+        p.hi = 55
+        p.do_instr(the_cmd)
+
+        self.assertEqual(p.reg[16], 55)
+
+        p.hi = -55
+        p.do_instr(the_cmd)
+
+        self.assertEqual(np.int32(p.reg[16]), -55)
 
     def test_mflo(self):
 
-        raise NotImplementedError()
+        p = MIPSProcessor()
+
+        the_cmd = CMDParse.parse_cmd("mflo $s0")
+
+        p.lo = 55
+        p.do_instr(the_cmd)
+
+        self.assertEqual(p.reg[16], 55)
+
+        p.lo = -55
+        p.do_instr(the_cmd)
+
+        self.assertEqual(np.int32(p.reg[16]), -55)
 
     def test_mult(self):
 
-        raise NotImplementedError()
+        p = MIPSProcessor()
+
+        the_cmd = CMDParse.parse_cmd("mult $s0, $s1")
+
+        p.reg[16] = 0xabbaabba
+        p.reg[17] = 0x9ba461595
+        p.do_instr(the_cmd)
+
+        res = np.int64(np.uint32([p.lo, p.hi]).view('int64')[0])
+
+        self.assertEqual(res, np.int64(np.int32(0xabbaabba)) * np.int64(np.int32(0x9ba461595)))
 
     def test_multu(self):
 
-        raise NotImplementedError()
+        p = MIPSProcessor()
+
+        the_cmd = CMDParse.parse_cmd("multu $s0, $s1")
+
+        p.reg[16] = 0xabbaabba
+        p.reg[17] = 0x9ba461595
+        p.do_instr(the_cmd)
+
+        res = np.uint64(np.uint32([p.lo, p.hi]).view('uint64')[0])
+
+        self.assertEqual(res, np.uint64(np.uint32(0xabbaabba)) * np.uint64(np.uint32(0x9ba461595)))
 
     def test_noop(self):
 
-        raise NotImplementedError()
+        p = MIPSProcessor()
+
+        the_cmd = CMDParse.parse_cmd("noop")
+
+        p.pc = 12
+        p.do_instr(the_cmd)
+
+        self.assertEqual(p.pc, 16)
 
     def test_or(self):
 
-        raise NotImplementedError()
+        p = MIPSProcessor()
+
+        for i in range(100):
+            a = np.uint32(random.getrandbits(32))
+            b = np.uint32(random.getrandbits(32))
+            p.reg[11] = a
+            p.reg[12] = b
+
+            c = np.bitwise_or(a, b)
+
+            p._or(10, 11, 12)
+
+            self.assertEqual(p.reg[10], c)
 
     def test_ori(self):
 
-        raise NotImplementedError()
+        p = MIPSProcessor()
+
+        for i in range(100):
+            imm = np.uint32(random.getrandbits(32))
+
+            rt = random.randint(8, 23)
+            rs = random.randint(8, 23)
+
+            rsval = np.uint32(random.getrandbits(32))
+
+            p.reg[rs] = rsval
+
+            res = np.bitwise_or(rsval, imm)
+
+            p._ori(rt, rs, imm)
+
+            self.assertEqual(p.reg[rt], res)
 
     def test_sb(self):
 
-        raise NotImplementedError()
+        p = MIPSProcessor()
+
+        the_cmd = CMDParse.parse_cmd("sb $s0, 4($s1)")
+
+        p.reg[16] = 0xabba
+        p.reg[17] = 0x2f8 - 4
+        p.do_instr(the_cmd)
+
+        self.assertEqual(p.mem[0x2f8], 0xba)
 
     def test_sll(self):
 
-        raise NotImplementedError()
+        p = MIPSProcessor()
+
+        the_cmd = CMDParse.parse_cmd("sll $s0, $s1, 10")
+
+        p.reg[16] = 0x0
+        p.reg[17] = 0xa
+        p.do_instr(the_cmd)
+
+        self.assertEqual(p.reg[16], np.left_shift(0xa, 10))
 
     def test_sllv(self):
 
-        raise NotImplementedError()
+        p = MIPSProcessor()
+
+        the_cmd = CMDParse.parse_cmd("sllv $s0, $s1, $s2")
+
+        p.reg[16] = 0x0
+        p.reg[17] = 0xa
+        p.reg[18] = 0xa
+        p.do_instr(the_cmd)
+
+        self.assertEqual(p.reg[16], np.left_shift(0xa, 10))
 
     def test_slt(self):
 
-        raise NotImplementedError()
+        p = MIPSProcessor()
+
+        the_cmd = CMDParse.parse_cmd("slt $s0, $s1, $s2")
+
+        p.reg[16] = 0x0
+        p.reg[17] = np.uint32(-10)
+        p.reg[18] = np.uint32(0)
+        p.do_instr(the_cmd)
+
+        self.assertEqual(p.reg[16], 1)
 
     def test_slti(self):
 
-        raise NotImplementedError()
+        p = MIPSProcessor()
+
+        the_cmd = CMDParse.parse_cmd("slti $s0, $s1, 0x5")
+
+        p.reg[16] = 0x0
+        p.reg[17] = np.uint32(-10)
+        p.do_instr(the_cmd)
+
+        self.assertEqual(p.reg[16], 1)
 
     def test_sltiu(self):
 
-        raise NotImplementedError()
+        p = MIPSProcessor()
+
+        the_cmd = CMDParse.parse_cmd("sltiu $s0, $s1, 0x5")
+
+        p.reg[16] = 0x0
+        p.reg[17] = np.uint32(-10)
+        p.do_instr(the_cmd)
+
+        self.assertEqual(p.reg[16], 0)
 
     def test_sltu(self):
 
-        raise NotImplementedError()
+        p = MIPSProcessor()
+
+        the_cmd = CMDParse.parse_cmd("sltu $s0, $s1, $s2")
+
+        p.reg[16] = 0x0
+        p.reg[17] = np.uint32(-10)
+        p.reg[18] = np.uint32(0)
+        p.do_instr(the_cmd)
+
+        self.assertEqual(p.reg[16], 0)
 
     def test_sra(self):
-        raise NotImplementedError()
+
+        p = MIPSProcessor()
+
+        the_cmd = CMDParse.parse_cmd("sra $s0, $s1, 2")
+
+        p.reg[16] = 0x0
+        p.reg[17] = np.uint32(-200)
+        p.do_instr(the_cmd)
+
+        self.assertEqual(np.int32(p.reg[16]), -50)
 
     def test_srl(self):
 
-        raise NotImplementedError()
+        p = MIPSProcessor()
+
+        the_cmd = CMDParse.parse_cmd("srl $s0, $s1, 2")
+
+        p.reg[16] = 0x0
+        p.reg[17] = np.uint32(-200)
+        p.do_instr(the_cmd)
+
+        self.assertEqual(p.reg[16], 1073741774)
 
     def test_srlv(self):
 
-        raise NotImplementedError()
+        p = MIPSProcessor()
+
+        the_cmd = CMDParse.parse_cmd("srlv $s0, $s1, $s2")
+
+        p.reg[16] = 0x0
+        p.reg[17] = 0xabbaabba
+        p.reg[18] = 0xa
+        p.do_instr(the_cmd)
+
+        self.assertEqual(p.reg[16], np.right_shift(0xabbaabba, 0xa))
 
     def test_sub(self):
         p = MIPSProcessor()
@@ -541,19 +983,63 @@ class TestOpcodes(unittest.TestCase):
 
     def test_sw(self):
 
-        raise NotImplementedError()
+        p = MIPSProcessor()
+
+        the_cmd = CMDParse.parse_cmd("sw $s0, 4($s1)")
+
+        p.reg[16] = 0xdeadbeef
+        p.reg[17] = 0x2f8 - 4
+        p.do_instr(the_cmd)
+
+        self.assertListEqual(list(p.mem[0x2f8:0x2f8 + 4]), [0xef, 0xbe, 0xad, 0xde])
 
     def test_syscall(self):
 
-        raise NotImplementedError()
+        p = MIPSProcessor()
+
+        the_cmd = CMDParse.parse_cmd("syscall")
+
+        try:
+            p.do_instr(the_cmd)
+            self.assertTrue(False, "Software interrupt not thrown on syscall.")
+        except SoftwareInterrupt:
+            pass
 
     def test_xor(self):
 
-        raise NotImplementedError()
+        p = MIPSProcessor()
+
+        for i in range(100):
+            a = np.uint32(random.getrandbits(32))
+            b = np.uint32(random.getrandbits(32))
+            p.reg[11] = a
+            p.reg[12] = b
+
+            c = np.bitwise_xor(a, b)
+
+            p._xor(10, 11, 12)
+
+            self.assertEqual(p.reg[10], c)
 
     def test_xori(self):
 
-        raise NotImplementedError()
+        p = MIPSProcessor()
+
+        for i in range(100):
+            imm = np.uint32(random.getrandbits(32))
+
+            rt = random.randint(8, 23)
+            rs = random.randint(8, 23)
+
+            rsval = np.uint32(random.getrandbits(32))
+
+            p.reg[rs] = rsval
+
+            res = np.bitwise_xor(rsval, imm)
+
+            p._xori(rt, rs, imm)
+
+            self.assertEqual(p.reg[rt], res)
 
 if __name__ == "__main__":
     random.seed()

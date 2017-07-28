@@ -135,6 +135,10 @@ class SoftwareInterrupt(Exception):
     pass
 
 
+class AddressError(Exception):
+    pass
+
+
 class CMDParse:
 
     # op
@@ -614,9 +618,9 @@ class Instr:
     @staticmethod
     def conv_target(target):
         try:
-            return np.bitwise_and(np.uint32(int(target)), 0b11111111111111111111111111)
+            return np.uint32(np.bitwise_and(np.uint32(int(target)), 0b11111111111111111111111111))
         except ValueError:
-            return np.bitwise_and(np.uint32(int(target, 16)), 0b11111111111111111111111111)
+            return np.uint32(np.bitwise_and(np.uint32(int(target, 16)), 0b11111111111111111111111111))
 
     @staticmethod
     def decode(word):
@@ -742,7 +746,7 @@ class Instr:
                 tmp_arr[1] = np.left_shift(self.rs, 21)
                 tmp_arr[2] = np.left_shift(self.rt, 16)
                 tmp_arr[3] = self.imm
-            elif self.op in ["blez"]:
+            elif self.op in ["bgtz", "blez"]:
                 tmp_arr[1] = np.left_shift(self.rs, 21)
                 tmp_arr[2] = 0
                 tmp_arr[3] = self.imm
@@ -835,13 +839,38 @@ class MIPSProcessor:
     def set_over(self):
         self.over = True
 
-    def __init__(self):
+    @property
+    def pc(self):
+        return self._pc
+
+    @pc.setter
+    def pc(self, value):
+
+        self._pc = np.uint32(value)
+
+    @property
+    def hi(self):
+        return self._hi
+
+    @hi.setter
+    def hi(self, value):
+
+        self._hi = np.uint32(value)
+
+    @property
+    def lo(self):
+        return self._lo
+
+    @lo.setter
+    def lo(self, value):
+        self._lo = np.uint32(value)
+
+    def __init__(self, cache_size=1024):
         self.reg = np.zeros(32, dtype=np.uint32)
 
-        self.hi = np.uint32(0)
-        self.lo = np.uint32(0)
-
-        self.pc = np.uint32(0)
+        self._hi = np.uint32(0)
+        self._lo = np.uint32(0)
+        self._pc = np.uint32(0)
         self.instr_c = 0
         self.epc = np.uint32(0)
         self.cause = np.uint32(0)
@@ -850,7 +879,7 @@ class MIPSProcessor:
 
         self.ir = np.uint32(0)
 
-        self.mem = np.empty(1000000, dtype='uint8')
+        self.mem = np.empty(cache_size, dtype='uint8')
 
         self.over = False
 
@@ -860,23 +889,6 @@ class MIPSProcessor:
 
         np.seterr(over="call")
         np.seterrcall(self.errcall)
-
-    def argconv(self, args):
-
-        out = []
-        for a in args:
-            try:
-                out.append(IanMIPS.reg_dict[a])
-                continue
-            except KeyError:
-                pass
-
-            try:
-                out.append(int(a))
-            except ValueError:
-                out.append(int(a, 16))
-
-        return out
 
     def load_program(self, start_addr, program):
 
@@ -907,7 +919,7 @@ class MIPSProcessor:
         if type(i) is not Instr:
             raise ValueError()
 
-        self.ops[i.op](*self.argconv(i.args))
+        self.ops[i.op](*i.args)
 
     def _add(self, rd, rs, rt):
         # Add two 32 bit GPRs, store in third. Traps on overflow.
@@ -962,43 +974,43 @@ class MIPSProcessor:
         # Branch on greater than or equal to 0.
         self.pc += 4
 
-        if self.reg[rs] >= 0:
+        if np.int32(self.reg[rs]) >= 0:
             self.pc += offset * 4
 
     def _bgezal(self, rs, offset):
         # Branch greater than or equal to zero and link
         self.pc += 4
 
-        if self.reg[rs] >= 0:
-            self.reg[31] = self.pc
+        if np.int32(self.reg[rs]) >= 0:
+            self.reg[31] = self.pc + 4
             self.pc += offset * 4
 
     def _bgtz(self, rs, offset):
         # Branch greater than zero
         self.pc += 4
 
-        if self.reg[rs] > 0:
+        if np.int32(self.reg[rs]) > 0:
             self.pc += offset * 4
 
     def _blez(self, rs, offset):
         # Branch less than or equal to zero
         self.pc += 4
 
-        if self.reg[rs] <= 0:
+        if np.int32(self.reg[rs]) <= 0:
             self.pc += offset * 4
 
     def _bltz(self, rs, offset):
         # Branch less than zero
         self.pc += 4
 
-        if self.reg[rs] < 0:
+        if np.int32(self.reg[rs]) < 0:
             self.pc += offset * 4
 
     def _bltzal(self, rs, offset):
         # Branch less than zero and link
         self.pc += 4
-        if self.reg[rs] < 0:
-            self.reg[31] = self.pc
+        if np.int32(self.reg[rs]) < 0:
+            self.reg[31] = self.pc + 4
             self.pc += offset * 4
 
     def _bne(self, rs, rt, offset):
@@ -1012,44 +1024,53 @@ class MIPSProcessor:
         self.pc += 4
         a = np.int32(self.reg[rs])
         b = np.int32(self.reg[rt])
-        self.lo = a / b
-        self.hi = a % b
+        self.lo = np.uint32(a / b)
+        self.hi = np.uint32(a % b)
 
     def _divu(self, rs, rt):
         self.pc += 4
         a = np.uint32(self.reg[rs])
         b = np.uint32(self.reg[rt])
-        self.lo = a / b
-        self.hi = a % b
+        self.lo = np.uint32(a / b)
+        self.hi = np.uint32(a % b)
 
     def _j(self, target):
-        self.pc = np.bitwise_or(np.bitwise_and(0xf0000000, self.pc), target * 4)
+
+        addr = np.bitwise_and(0xf0000000, self.pc)
+
+        self.pc = np.bitwise_or(addr, target * 4)
 
     def _jal(self, target):
         self.reg[31] = self.pc + 8
         self.pc = np.bitwise_or(np.bitwise_and(0xf0000000, self.pc), target * 4)
 
     def _jr(self, rs):
+
+        if self.reg[rs] % 4 != 0:
+            raise AddressError()
+
         self.pc = self.reg[rs]
 
     def _lb(self, rt, offset, rs):
+        self.pc += 4
 
-        start = rs + offset * 4
+        loc = self.reg[rs] + np.int16(offset)
 
-        self.reg[rt] = self.mem[start]
+        e = np.int8(self.mem[loc])
+
+        self.reg[rt] = np.uint32(e)
 
     def _lui(self, rt, imm):
+        self.pc += 4
 
         self.reg[rt] = np.left_shift(imm, 16)
 
     def _lw(self, rt, offset, rs):
         # c = np.uint32(*a[start:start + 4].view('uint32'))
-
-        start = rs + offset*4
-
-        self.reg[rt] = np.uint32(self.mem[start:start + 4].view('uint32')[0])
-
         self.pc += 4
+        loc = self.reg[rs] + np.int16(offset)
+
+        self.reg[rt] = np.uint32(self.mem[loc:loc + 4].view('uint32')[0])
 
     def _mfhi(self, rd):
         self.pc += 4
@@ -1068,8 +1089,8 @@ class MIPSProcessor:
     def _multu(self, rs, rt):
         self.pc += 4
         res = np.uint64(self.reg[rs]) * np.uint64(self.reg[rt])
-        self.hi = np.right_shift(res, 32)
-        self.lo = np.bitwise_and(res, 0xffffffff)
+        self.hi = np.right_shift([res], 32)[0]
+        self.lo = np.bitwise_and([res], 0xffffffff)[0]
 
     def _noop(self):
 
@@ -1087,7 +1108,7 @@ class MIPSProcessor:
 
     def _sb(self, rt, offset, rs):
 
-        start = self.reg[rs] + offset * 4
+        start = self.reg[rs] + offset
 
         self.mem[start] = np.uint8(np.bitwise_and(0xff, self.reg[rt]))
 
@@ -1101,8 +1122,9 @@ class MIPSProcessor:
     def _sllv(self, rd, rt, rs):
         self.pc += 4
 
-        self.reg[rd] = np.left_shift(self.reg[rt], self.reg[rs])
+        shamt = np.bitwise_and(0b11111, self.reg[rs])
 
+        self.reg[rd] = np.left_shift(self.reg[rt], shamt)
 
     def _slt(self, rd, rs, rt):
         self.pc += 4
@@ -1123,7 +1145,7 @@ class MIPSProcessor:
     def _sltiu(self, rt, rs, imm):
         self.pc += 4
 
-        if self.reg[rs] < np.int16(imm):
+        if self.reg[rs] < np.uint32(np.int16(imm)):
             self.reg[rt] = 1
         else:
             self.reg[rt] = 0
@@ -1141,16 +1163,17 @@ class MIPSProcessor:
 
         self.reg[rd] = np.right_shift(np.int32(self.reg[rt]), shamt)
 
-
     def _srl(self, rd, rt, shamt):
         self.pc += 4
 
         self.reg[rd] = np.right_shift(self.reg[rt], shamt)
 
-    def _srlv(self, rd, rs, rt):
+    def _srlv(self, rd, rt, rs):
         self.pc += 4
 
-        self.reg[rd] = np.right_shift(self.reg[rt], self.reg[rs])
+        res = np.right_shift(self.reg[rt], self.reg[rs])
+
+        self.reg[rd] = res
 
     def _sub(self, rd, rs, rt):
         # Subtact two 32 bit GPRs, store in third. Traps on overflow
@@ -1174,10 +1197,11 @@ class MIPSProcessor:
 
     def _sw(self, rt, offset, rs):
         #a[start:start + 4] = np.uint32([c]).view('uint8')
-        start = self.reg[rs] + offset*4
+        self.pc += 4
+        start = self.reg[rs] + np.int16(offset)
         self.mem[start:start + 4] = np.uint32([self.reg[rt]]).view('uint8')
 
-        self.pc += 4
+
 
     def _syscall(self):
         self.pc += 4
