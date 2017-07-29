@@ -70,6 +70,42 @@ class MIPSI(Enum):
     XOR = 43
     XORI = 44
 
+
+@unique
+class MIPSR(Enum):
+        ZERO = 0    # Always 0
+        AT = 1      # Reserved for pseudo-instructions
+        V0 = 2      # Return values from functions
+        V1 = 3
+        A0 = 4      # Arguments to functions, not preserved.
+        A1 = 5
+        A2 = 6
+        A3 = 7
+        T0 = 8
+        T1 = 9      # Temporary data, not preserved.
+        T2 = 10
+        T3 = 11
+        T4 = 12
+        T5 = 13
+        T6 = 14
+        T7 = 15
+        S0 = 16     # Saved registers, preserved.
+        S1 = 17
+        S2 = 18
+        S3 = 19
+        S4 = 20
+        S5 = 21
+        S6 = 22
+        S7 = 23
+        T8 = 24     # More temp registers
+        T9 = 25
+        K0 = 26     # Kernel reserved registers
+        K1 = 27
+        GP = 28     # Global Area Pointer
+        SP = 29     # Stack pointer
+        FP = 30     # Frame pointer
+        RA = 31     # Return Address
+
 op_enum = {
     "add":      MIPSI.ADD,
     "addi":     MIPSI.ADDI,
@@ -587,8 +623,21 @@ class Instr:
 
         return out
 
+    @property
+    def op(self):
+        return self._op.name.lower()
+
+    @op.setter
+    def op(self, value):
+        if type(value) is MIPSI:
+            self._op = value
+        elif type(value) is str:
+            self._op = op_enum[value]
+        else:
+            raise AttributeError("op must be set with a MIPSI or a valid opstring.")
+
     def __init__(self):
-        self.op = ""
+        self._op = MIPSI.NOOP
         self.funct = ""
         self.rs = ""
         self.rt = ""
@@ -869,13 +918,17 @@ class MIPSProcessor:
     def reg(self):
         return self._reg
 
+    @reg.setter
+    def reg(self, value):
+        raise AttributeError("reg cannot be overwritten.")
+
     @property
     def sreg(self):
         return np.int32(self._reg)
 
     @sreg.setter
     def sreg(self, value):
-        raise ValueError("Cannot assign to sreg!!")
+        raise AttributeError("Cannot assign to sreg!!")
 
     def __init__(self, cache_size=1024):
 
@@ -1001,7 +1054,7 @@ class MIPSProcessor:
         self.pc += 4
 
         if self.sreg[rs] >= 0:
-            self.reg[31] = self.pc + 4
+            self.reg[MIPSR.RA.value] = self.pc + 4
             self.pc += offset * 4
 
     def _bgtz(self, rs, offset):
