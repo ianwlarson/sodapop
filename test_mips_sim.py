@@ -680,6 +680,14 @@ class TestOpcodes(unittest.TestCase):
 
         self.assertEqual(p.reg[16], 0xabba0000)
 
+        the_cmd = CMDParse.parse_cmd("lui $s0, 0xdead")
+
+        p.reg[16] = 0xbeef
+
+        p.do_instr(the_cmd)
+
+        self.assertEqual(p.reg[16], 0xdead0000)
+
     def test_lw(self):
 
         p = MIPSProcessor()

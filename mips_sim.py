@@ -17,9 +17,17 @@
 # ░░░░░░░░▀▀█▄▄▄▄▀░░░░
 # ░░░░░░░░░░░░░░░░░░░░
 
-from enum import Enum, unique
+from enum import Enum, unique, IntEnum
 import numpy as np
-import re
+import argparse
+import os.path
+
+
+def bshl(value, shamt):
+    try:
+        return np.left_shift(value, shamt)
+    except TypeError:
+        return np.left_shift([value], shamt)[0]
 
 
 @unique
@@ -72,7 +80,7 @@ class MIPSI(Enum):
 
 
 @unique
-class MIPSR(Enum):
+class MIPSR(IntEnum):
         ZERO = 0    # Always 0
         AT = 1      # Reserved for pseudo-instructions
         V0 = 2      # Return values from functions
@@ -317,14 +325,17 @@ class CMDParse:
         elif op_str[0] in CMDParse.cat_4:
             out.rt = IanMIPS.reg_dict[op_str[1]]
             out.rs = IanMIPS.reg_dict[op_str[2]]
-            out.imm = Instr.conv_imm(op_str[3])
-            out.args = [out.rt, out.rs, out.imm]
+            out.imm = op_str[3]
+            if op_str[0] in ["addi", "addiu", "slti", "sltiu"]:
+                out.args = [out.rt, out.rs, out.simm]
+            else:
+                out.args = [out.rt, out.rs, out.imm]
 
         elif op_str[0] in CMDParse.cat_5:
             out.rt = IanMIPS.reg_dict[op_str[1]]
-            out.imm = Instr.conv_imm(op_str[2])
+            out.imm = op_str[2]
             out.rs = IanMIPS.reg_dict[op_str[3]]
-            out.args = [out.rt, out.imm, out.rs]
+            out.args = [out.rt, out.simm, out.rs]
 
         elif op_str[0] in CMDParse.cat_6:
             out.rs = IanMIPS.reg_dict[op_str[1]]
@@ -345,19 +356,19 @@ class CMDParse:
 
         elif op_str[0] in CMDParse.cat_10:
             out.rt = IanMIPS.reg_dict[op_str[1]]
-            out.imm = Instr.conv_imm(op_str[2])
+            out.imm = op_str[2]
             out.args = [out.rt, out.imm]
 
         elif op_str[0] in CMDParse.cat_11:
             out.rs = IanMIPS.reg_dict[op_str[1]]
-            out.imm = Instr.conv_imm(op_str[2])
-            out.args = [out.rs, out.imm]
+            out.imm = op_str[2]
+            out.args = [out.rs, out.simm]
 
         elif op_str[0] in CMDParse.cat_12:
             out.rs = IanMIPS.reg_dict[op_str[1]]
             out.rt = IanMIPS.reg_dict[op_str[2]]
-            out.imm = Instr.conv_imm(op_str[3])
-            out.args = [out.rs, out.rt, out.imm]
+            out.imm = op_str[3]
+            out.args = [out.rs, out.rt, out.simm]
 
         else:
             pass
@@ -636,6 +647,36 @@ class Instr:
         else:
             raise AttributeError("op must be set with a MIPSI or a valid opstring.")
 
+    @property
+    def imm(self):
+        return self._imm
+
+    @imm.setter
+    def imm(self, value):
+        val = 0
+        if type(value) is str:
+            try:
+                val = int(value)
+                self._imm = np.uint16(val)
+                return
+            except ValueError:
+                pass
+
+            try:
+                val = int(value, 16)
+                self._imm = np.uint16(val)
+                return
+            except ValueError:
+                pass
+
+            raise ValueError()
+
+        self._imm = np.uint16(value)
+
+    @property
+    def simm(self):
+        return np.int16(self._imm)
+
     def __init__(self):
         self._op = MIPSI.NOOP
         self.funct = ""
@@ -644,7 +685,7 @@ class Instr:
         self.rd = ""
         self.shamt = ""
         self.target = ""
-        self.imm = np.uint16(0)
+        self._imm = np.uint16(0)
         self.offset = ""
         self.args = []
         self.bin = np.uint32(0)
@@ -727,7 +768,7 @@ class Instr:
                 instr.rs = Instr.extr_rs(word)
                 instr.rt = Instr.extr_rt(word)
                 instr.imm = Instr.extr_imm(word)
-            elif instr.op in ["blez"]:
+            elif instr.op in ["blez", "bgtz"]:
                 instr.rs = Instr.extr_rs(word)
                 instr.imm = Instr.extr_imm(word)
             elif instr.op in ["j", "jal"]:
@@ -839,7 +880,7 @@ class Instr:
         elif self.op in CMDParse.cat_5:
             rs = IanMIPS.inv_reg_dict[self.rs]
             rt = IanMIPS.inv_reg_dict[self.rt]
-            return "{} ${}, {}(${})".format(self.op, rt, self.imm, rs)
+            return "{} ${}, {}(${})".format(self.op, rt, np.int16(self.imm), rs)
 
         elif self.op in CMDParse.cat_6:
             rs = IanMIPS.inv_reg_dict[self.rs]
@@ -863,12 +904,12 @@ class Instr:
 
         elif self.op in CMDParse.cat_11:
             rs = IanMIPS.inv_reg_dict[self.rs]
-            return "{} ${}, {}".format(self.op, rs, self.imm)
+            return "{} ${}, {}".format(self.op, rs, np.int16(self.imm))
 
         elif self.op in CMDParse.cat_12:
             rs = IanMIPS.inv_reg_dict[self.rs]
             rt = IanMIPS.inv_reg_dict[self.rt]
-            return "{} ${}, ${}, {}".format(self.op, rs, rt, self.imm)
+            return "{} ${}, ${}, {}".format(self.op, rs, rt, np.int16(self.imm))
 
         else:
             print("How did this happen? FUCK", self.op)
@@ -942,6 +983,7 @@ class MIPSProcessor:
         self.cause = np.uint32(0)
         self.badvaddr = np.uint32(0)
         self.status = np.uint32(0)
+        self.instr = Instr()
 
         self.ir = np.uint32(0)
 
@@ -974,9 +1016,20 @@ class MIPSProcessor:
         except IndexError:
             raise MemoryError()
 
-    def execute_prog(self, start_point):
+    def execute_prog(self, start_point, max_instr=-1):
 
-        raise NotImplementedError()
+        self.pc = start_point
+        self.reg[MIPSR.GP.value] = start_point
+        self.reg[MIPSR.FP.value] = start_point
+
+        exec_counter = 0
+
+        while max_instr == -1 or exec_counter < max_instr:
+            self.fetch()
+            self.decode()
+            # print(self.instr)
+            self.execute()
+            exec_counter += 1
 
     def fetch(self):
 
@@ -984,7 +1037,10 @@ class MIPSProcessor:
 
     def decode(self):
 
-        instr = Instr.decode(self.ir)
+        self.instr = Instr.decode(self.ir)
+
+    def execute(self):
+        self.do_instr(self.instr)
 
     def do_instr(self, i):
 
@@ -1039,58 +1095,73 @@ class MIPSProcessor:
         # Branch if two specified GPRs are equal.
         self.pc += 4
 
+        branch = np.int32(np.int16(offset)) * 4
+
         if self.reg[rs] == self.reg[rt]:
-            self.pc += offset * 4
+            self.pc += branch
 
     def _bgez(self, rs, offset):
         # Branch on greater than or equal to 0.
         self.pc += 4
 
+        branch = np.int32(np.int16(offset)) * 4
+
         if np.int32(self.reg[rs]) >= 0:
-            self.pc += offset * 4
+            self.pc += branch
 
     def _bgezal(self, rs, offset):
         # Branch greater than or equal to zero and link
         self.pc += 4
 
+        branch = np.int32(np.int16(offset)) * 4
+
         if self.sreg[rs] >= 0:
             self.reg[MIPSR.RA.value] = self.pc + 4
-            self.pc += offset * 4
+            self.pc += branch
 
     def _bgtz(self, rs, offset):
         # Branch greater than zero
         self.pc += 4
 
+        branch = np.int32(np.int16(offset)) * 4
+
         if self.sreg[rs] > 0:
-            self.pc += offset * 4
+            self.pc += branch
 
     def _blez(self, rs, offset):
         # Branch less than or equal to zero
         self.pc += 4
 
+        branch = np.int32(np.int16(offset)) * 4
+
         if self.sreg[rs] <= 0:
-            self.pc += offset * 4
+            self.pc += branch
 
     def _bltz(self, rs, offset):
         # Branch less than zero
         self.pc += 4
+        branch = np.int32(np.int16(offset)) * 4
 
         if np.int32(self.reg[rs]) < 0:
-            self.pc += offset * 4
+            self.pc += branch
 
     def _bltzal(self, rs, offset):
         # Branch less than zero and link
         self.pc += 4
+        branch = np.int32(np.int16(offset)) * 4
+
         if self.sreg[rs] < 0:
             self.reg[31] = self.pc + 4
-            self.pc += offset * 4
+            self.pc += branch
 
     def _bne(self, rs, rt, offset):
         # Branch if the contents of two GPRs are not equal
         self.pc += 4
 
+        branch = np.int32(np.int16(offset)) * 4
+
         if self.reg[rs] != self.reg[rt]:
-            self.pc += offset * 4
+            self.pc += branch
 
     def _div(self, rs, rt):
         self.pc += 4
@@ -1135,7 +1206,7 @@ class MIPSProcessor:
     def _lui(self, rt, imm):
         self.pc += 4
 
-        self.reg[rt] = np.left_shift(imm, 16)
+        self.reg[rt] = np.left_shift(np.uint32(imm), 16)
 
     def _lw(self, rt, offset, rs):
         # c = np.uint32(*a[start:start + 4].view('uint32'))
@@ -1176,7 +1247,8 @@ class MIPSProcessor:
     def _ori(self, rt, rs, imm):
         self.pc += 4
 
-        self.reg[rt] = np.bitwise_or(self.reg[rs], imm)
+        # 0 extend the immediate (16-bit) value.
+        self.reg[rt] = np.bitwise_or(self.reg[rs], np.uint32(imm))
 
     def _sb(self, rt, offset, rs):
 
@@ -1231,11 +1303,13 @@ class MIPSProcessor:
             self.reg[rd] = 0
 
     def _sra(self, rd, rt, shamt):
+        # Shift Right Arithmetic
         self.pc += 4
 
-        self.reg[rd] = np.right_shift(np.int32(self.reg[rt]), shamt)
+        self.reg[rd] = np.right_shift(self.sreg[rt], shamt)
 
     def _srl(self, rd, rt, shamt):
+        # Shift Right Logical
         self.pc += 4
 
         self.reg[rd] = np.right_shift(self.reg[rt], shamt)
@@ -1249,8 +1323,8 @@ class MIPSProcessor:
 
     def _sub(self, rd, rs, rt):
         # Subtact two 32 bit GPRs, store in third. Traps on overflow
-        a = np.int32(self.reg[rs])
-        b = np.int32(self.reg[rt])
+        a = self.sreg[rs]
+        b = self.sreg[rt]
         c = a - b
 
         if self.over:
@@ -1268,7 +1342,7 @@ class MIPSProcessor:
         self.pc += 4
 
     def _sw(self, rt, offset, rs):
-        #a[start:start + 4] = np.uint32([c]).view('uint8')
+        # a[start:start + 4] = np.uint32([c]).view('uint8')
         self.pc += 4
         eff_addr = self.reg[rs] + np.int16(offset)
 
@@ -1306,3 +1380,44 @@ for k, v in IanMIPS.op_dict.items():
 for k, v in IanMIPS.op_dict.items():
     if v == 1:
         assert(k in IanMIPS.b_instr.keys())
+
+
+def is_valid_file(filename):
+    if not os.path.exists(filename):
+        return False
+
+    try:
+        # Default is open for reading.
+        with open(filename):
+            pass
+
+        return True
+    except IOError:
+        return False
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(prog='My barebones MIPS simulator',
+                                     description='')
+    parser.add_argument(dest='file', type=str,
+                        help="Binary file to run.")
+    parser.add_argument('-d', '--debug', action='store_true', dest='debug', default=False,
+                        help='Debug mode.')
+
+    args = parser.parse_args()
+
+    p = MIPSProcessor()
+
+    assert(is_valid_file(args.file))
+
+    tmpbuf = np.fromfile(args.file, np.uint8)
+
+    p.load_program(12, tmpbuf)
+
+    p.execute_prog(12, 1000)
+
+    print("t0 = {}".format(p.reg[MIPSR.T0]))
+    print("t1 = {}".format(p.reg[MIPSR.T1]))
+    print("t2 = {}".format(p.reg[MIPSR.T2]))
+    print("t3 = {}".format(p.reg[MIPSR.T3]))
+
+# End of file
